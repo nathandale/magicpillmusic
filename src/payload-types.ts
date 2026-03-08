@@ -72,6 +72,10 @@ export interface Config {
     media: Media;
     categories: Category;
     users: User;
+    artists: Artist;
+    releases: Release;
+    tracks: Track;
+    'value-splits': ValueSplit;
     redirects: Redirect;
     forms: Form;
     'form-submissions': FormSubmission;
@@ -94,6 +98,10 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     categories: CategoriesSelect<false> | CategoriesSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
+    artists: ArtistsSelect<false> | ArtistsSelect<true>;
+    releases: ReleasesSelect<false> | ReleasesSelect<true>;
+    tracks: TracksSelect<false> | TracksSelect<true>;
+    'value-splits': ValueSplitsSelect<false> | ValueSplitsSelect<true>;
     redirects: RedirectsSelect<false> | RedirectsSelect<true>;
     forms: FormsSelect<false> | FormsSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
@@ -112,10 +120,12 @@ export interface Config {
   globals: {
     header: Header;
     footer: Footer;
+    'publishing-settings': PublishingSetting;
   };
   globalsSelect: {
     header: HeaderSelect<false> | HeaderSelect<true>;
     footer: FooterSelect<false> | FooterSelect<true>;
+    'publishing-settings': PublishingSettingsSelect<false> | PublishingSettingsSelect<true>;
   };
   locale: null;
   widgets: {
@@ -784,6 +794,269 @@ export interface Form {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "artists".
+ */
+export interface Artist {
+  id: number;
+  name: string;
+  slug: string;
+  bio?: string | null;
+  /**
+   * Artist website URL
+   */
+  website?: string | null;
+  socialLinks?:
+    | {
+        platform: 'nostr' | 'twitter' | 'mastodon' | 'instagram' | 'youtube' | 'bandcamp' | 'other';
+        url: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Artist profile image
+   */
+  image?: (number | null) | Media;
+  /**
+   * Default Lightning address for this artist (user@provider.com)
+   */
+  lightningAddress?: string | null;
+  status?: ('active' | 'inactive') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "releases".
+ */
+export interface Release {
+  id: number;
+  title: string;
+  slug: string;
+  type: 'single' | 'album';
+  /**
+   * podcast:medium — determines feed type (music or video)
+   */
+  medium?: ('music' | 'video') | null;
+  artist: number | Artist;
+  releaseDate?: string | null;
+  /**
+   * Square cover art (3000x3000 recommended)
+   */
+  coverImage?: (number | null) | Media;
+  /**
+   * Wide banner image (3000x1000 recommended)
+   */
+  bannerImage?: (number | null) | Media;
+  description?: string | null;
+  /**
+   * Contains explicit content
+   */
+  explicit?: boolean | null;
+  genre?:
+    | (
+        | 'Alternative'
+        | 'Americana/Folk'
+        | 'Blues'
+        | 'Childrens'
+        | 'Christmas'
+        | 'Classical'
+        | 'Country'
+        | 'Dance/Electronic'
+        | 'Instrumental'
+        | 'Jazz'
+        | 'Other'
+        | 'Pop'
+        | 'R&B/Hip Hop'
+        | 'Reggae'
+        | 'Rock'
+        | 'Soundtrack'
+      )
+    | null;
+  /**
+   * Up to 4 subgenre tags
+   */
+  subgenres?:
+    | {
+        name: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * podcast:locked — prevent feed scraping by other platforms
+   */
+  feedLocked?: boolean | null;
+  /**
+   * e.g. Creative Commons BY 4.0
+   */
+  license?: string | null;
+  /**
+   * Universal Product Code (album-level)
+   */
+  upc?: string | null;
+  /**
+   * Recording location (Studio, City, etc.)
+   */
+  location?: string | null;
+  /**
+   * Nostr or social discussion URL
+   */
+  socialUrl?: string | null;
+  /**
+   * Support / funding links (podcast:funding)
+   */
+  fundingLinks?:
+    | {
+        /**
+         * e.g. Ko-fi, Buy Me a Coffee
+         */
+        label: string;
+        url: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Suggested sats per stream
+   */
+  suggestedSats?: number | null;
+  /**
+   * Stable feed GUID for this release (auto-generated)
+   */
+  releaseGuid?: string | null;
+  status?: ('draft' | 'published') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tracks".
+ */
+export interface Track {
+  id: number;
+  title: string;
+  slug: string;
+  release: number | Release;
+  /**
+   * Position in the release tracklist
+   */
+  trackNumber: number;
+  /**
+   * Audio file (MP3/WAV/FLAC/OGG)
+   */
+  audioFile?: (number | null) | Media;
+  /**
+   * External audio URL (if not using upload)
+   */
+  audioUrl?: string | null;
+  /**
+   * Audio MIME type
+   */
+  mimeType?: string | null;
+  /**
+   * File size in bytes
+   */
+  fileSize?: number | null;
+  /**
+   * Duration in seconds
+   */
+  duration?: number | null;
+  /**
+   * Video file URL (MP4/MOV/WebM)
+   */
+  videoUrl?: string | null;
+  videoMimeType?: string | null;
+  /**
+   * Video file size in bytes
+   */
+  videoFileSize?: number | null;
+  /**
+   * WebVTT file URL for lyrics/captions
+   */
+  transcriptUrl?: string | null;
+  /**
+   * Per-track artwork override (falls back to release cover)
+   */
+  artwork?: (number | null) | Media;
+  description?: string | null;
+  explicit?: boolean | null;
+  /**
+   * International Standard Recording Code
+   */
+  isrc?: string | null;
+  /**
+   * Per-track genre override (falls back to release genre)
+   */
+  genre?:
+    | (
+        | 'Alternative'
+        | 'Americana/Folk'
+        | 'Blues'
+        | 'Childrens'
+        | 'Christmas'
+        | 'Classical'
+        | 'Country'
+        | 'Dance/Electronic'
+        | 'Instrumental'
+        | 'Jazz'
+        | 'Other'
+        | 'Pop'
+        | 'R&B/Hip Hop'
+        | 'Reggae'
+        | 'Rock'
+        | 'Soundtrack'
+      )
+    | null;
+  subgenres?:
+    | {
+        name: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Stable feed GUID (auto-generated)
+   */
+  guid?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "value-splits".
+ */
+export interface ValueSplit {
+  id: number;
+  /**
+   * Attach to a release (for channel-level splits)
+   */
+  release?: (number | null) | Release;
+  /**
+   * Attach to a specific track (for per-track splits)
+   */
+  track?: (number | null) | Track;
+  /**
+   * Display name of the recipient
+   */
+  recipientName: string;
+  /**
+   * Payment method type
+   */
+  paymentType?: 'lightning' | null;
+  /**
+   * Lightning address (user@provider.com) or node pubkey
+   */
+  lightningAddress: string;
+  /**
+   * Split percentage (0–100)
+   */
+  percentage: number;
+  /**
+   * Role or notes (e.g. Artist, Producer, Songwriter)
+   */
+  role?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "redirects".
  */
 export interface Redirect {
@@ -991,6 +1264,22 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'users';
         value: number | User;
+      } | null)
+    | ({
+        relationTo: 'artists';
+        value: number | Artist;
+      } | null)
+    | ({
+        relationTo: 'releases';
+        value: number | Release;
+      } | null)
+    | ({
+        relationTo: 'tracks';
+        value: number | Track;
+      } | null)
+    | ({
+        relationTo: 'value-splits';
+        value: number | ValueSplit;
       } | null)
     | ({
         relationTo: 'redirects';
@@ -1359,6 +1648,116 @@ export interface UsersSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "artists_select".
+ */
+export interface ArtistsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  bio?: T;
+  website?: T;
+  socialLinks?:
+    | T
+    | {
+        platform?: T;
+        url?: T;
+        id?: T;
+      };
+  image?: T;
+  lightningAddress?: T;
+  status?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "releases_select".
+ */
+export interface ReleasesSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  type?: T;
+  medium?: T;
+  artist?: T;
+  releaseDate?: T;
+  coverImage?: T;
+  bannerImage?: T;
+  description?: T;
+  explicit?: T;
+  genre?: T;
+  subgenres?:
+    | T
+    | {
+        name?: T;
+        id?: T;
+      };
+  feedLocked?: T;
+  license?: T;
+  upc?: T;
+  location?: T;
+  socialUrl?: T;
+  fundingLinks?:
+    | T
+    | {
+        label?: T;
+        url?: T;
+        id?: T;
+      };
+  suggestedSats?: T;
+  releaseGuid?: T;
+  status?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tracks_select".
+ */
+export interface TracksSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  release?: T;
+  trackNumber?: T;
+  audioFile?: T;
+  audioUrl?: T;
+  mimeType?: T;
+  fileSize?: T;
+  duration?: T;
+  videoUrl?: T;
+  videoMimeType?: T;
+  videoFileSize?: T;
+  transcriptUrl?: T;
+  artwork?: T;
+  description?: T;
+  explicit?: T;
+  isrc?: T;
+  genre?: T;
+  subgenres?:
+    | T
+    | {
+        name?: T;
+        id?: T;
+      };
+  guid?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "value-splits_select".
+ */
+export interface ValueSplitsSelect<T extends boolean = true> {
+  release?: T;
+  track?: T;
+  recipientName?: T;
+  paymentType?: T;
+  lightningAddress?: T;
+  percentage?: T;
+  role?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "redirects_select".
  */
 export interface RedirectsSelect<T extends boolean = true> {
@@ -1692,6 +2091,55 @@ export interface Footer {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "publishing-settings".
+ */
+export interface PublishingSetting {
+  id: number;
+  /**
+   * Base URL for generated feeds (e.g. https://magicpillmusic.com)
+   */
+  baseFeedUrl?: string | null;
+  /**
+   * Default podcast/feed title
+   */
+  podcastTitle?: string | null;
+  /**
+   * Default podcast description
+   */
+  podcastDescription?: string | null;
+  language?: string | null;
+  /**
+   * Default copyright string for feeds
+   */
+  defaultCopyright?: string | null;
+  /**
+   * Default iTunes/podcast category
+   */
+  defaultCategory?: string | null;
+  defaultSubcategory?: string | null;
+  /**
+   * Feed owner name
+   */
+  ownerName?: string | null;
+  /**
+   * Feed owner email
+   */
+  ownerEmail?: string | null;
+  publisherName?: string | null;
+  publisherUrl?: string | null;
+  /**
+   * Default suggested sats per stream
+   */
+  defaultSuggestedSats?: number | null;
+  /**
+   * Default feed image / site logo
+   */
+  siteImage?: (number | null) | Media;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "header_select".
  */
 export interface HeaderSelect<T extends boolean = true> {
@@ -1732,6 +2180,28 @@ export interface FooterSelect<T extends boolean = true> {
             };
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "publishing-settings_select".
+ */
+export interface PublishingSettingsSelect<T extends boolean = true> {
+  baseFeedUrl?: T;
+  podcastTitle?: T;
+  podcastDescription?: T;
+  language?: T;
+  defaultCopyright?: T;
+  defaultCategory?: T;
+  defaultSubcategory?: T;
+  ownerName?: T;
+  ownerEmail?: T;
+  publisherName?: T;
+  publisherUrl?: T;
+  defaultSuggestedSats?: T;
+  siteImage?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

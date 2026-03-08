@@ -19,10 +19,13 @@
     "start": "cross-env NODE_OPTIONS=--no-deprecation next start",
     "test": "pnpm run test:int && pnpm run test:e2e",
     "test:e2e": "cross-env NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" playwright test --config=playwright.config.ts",
+    "seed": "cross-env NODE_OPTIONS='--no-deprecation --import=tsx/esm' tsx src/seed.ts",
     "test:int": "cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts"
   },
   "dependencies": {
     "@payloadcms/admin-bar": "3.79.0",
+    "@payloadcms/db-postgres": "3.79.0",
+    "@payloadcms/email-nodemailer": "^3.79.0",
     "@payloadcms/live-preview-react": "3.79.0",
     "@payloadcms/next": "3.79.0",
     "@payloadcms/plugin-form-builder": "3.79.0",
@@ -36,6 +39,7 @@
     "@radix-ui/react-label": "^2.0.2",
     "@radix-ui/react-select": "^2.0.0",
     "@radix-ui/react-slot": "^1.0.2",
+    "@types/nodemailer": "^7.0.11",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cross-env": "^7.0.3",
@@ -45,14 +49,14 @@
     "lucide-react": "0.563.0",
     "next": "15.4.11",
     "next-sitemap": "^4.2.3",
+    "nodemailer": "^8.0.1",
     "payload": "3.79.0",
     "prism-react-renderer": "^2.3.1",
     "react": "19.2.1",
     "react-dom": "19.2.1",
     "react-hook-form": "7.71.1",
     "sharp": "0.34.2",
-    "tailwind-merge": "^3.4.0",
-    "@payloadcms/db-postgres": "3.79.0"
+    "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
