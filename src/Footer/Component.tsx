@@ -14,9 +14,16 @@ export async function Footer() {
     <footer className="mt-auto bg-black border-t-[3px] border-red px-12 py-6">
       <div className="flex flex-col md:flex-row items-center justify-between gap-4">
         <span
-          className="font-bangers text-lg tracking-[0.12em] text-red"
+          className="inline-flex items-center gap-2 font-bangers text-lg tracking-[0.12em] text-red"
           style={{ textShadow: '2px 2px 0 #ffee00' }}
         >
+          <img
+            src="/images/theme/speaker.png"
+            alt=""
+            className="w-4 h-auto"
+            style={{ filter: 'brightness(0) invert(1)' }}
+            aria-hidden="true"
+          />
           Magic Pill Music
         </span>
 
@@ -33,7 +40,7 @@ export async function Footer() {
         </nav>
 
         <span className="font-vt323 text-base text-red/30">
-          &copy; {new Date().getFullYear()} &mdash; Artist Cooperative
+          &copy; {new Date().getFullYear()} &mdash; Decentralized Music Publisher
         </span>
       </div>
     </footer>

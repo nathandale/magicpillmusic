@@ -143,23 +143,41 @@ export const HeroEffects: React.FC<HeroEffectsProps> = ({
 
       {enableOrnaments && (
         <>
-          <img
-            className="hero-effects__orn absolute top-0 left-0 w-[180px] opacity-35 pointer-events-none z-[1]"
+          {/* CSS L-bracket corner decorations */}
+          <div
+            className="absolute top-4 left-4 w-[60px] h-[60px] pointer-events-none z-[1]"
             style={{
-              filter: 'sepia(1) saturate(5) hue-rotate(-10deg) brightness(0.9)',
+              borderTop: '2px solid #ff0000',
+              borderLeft: '2px solid #ff0000',
+              boxShadow: '-2px -2px 8px rgba(255,0,0,0.3), inset 0 0 0 transparent',
             }}
-            src="/images/theme/orn4.png"
-            alt=""
             aria-hidden="true"
           />
-          <img
-            className="hero-effects__orn absolute top-0 right-0 w-[180px] opacity-35 pointer-events-none z-[1]"
+          <div
+            className="absolute top-4 right-4 w-[60px] h-[60px] pointer-events-none z-[1]"
             style={{
-              filter: 'sepia(1) saturate(5) hue-rotate(-10deg) brightness(0.9)',
-              transform: 'scaleX(-1)',
+              borderTop: '2px solid #ff0000',
+              borderRight: '2px solid #ff0000',
+              boxShadow: '2px -2px 8px rgba(255,0,0,0.3)',
             }}
-            src="/images/theme/orn4.png"
-            alt=""
+            aria-hidden="true"
+          />
+          <div
+            className="absolute bottom-4 left-4 w-[60px] h-[60px] pointer-events-none z-[1]"
+            style={{
+              borderBottom: '2px solid #ff0000',
+              borderLeft: '2px solid #ff0000',
+              boxShadow: '-2px 2px 8px rgba(255,0,0,0.3)',
+            }}
+            aria-hidden="true"
+          />
+          <div
+            className="absolute bottom-4 right-4 w-[60px] h-[60px] pointer-events-none z-[1]"
+            style={{
+              borderBottom: '2px solid #ff0000',
+              borderRight: '2px solid #ff0000',
+              boxShadow: '2px 2px 8px rgba(255,0,0,0.3)',
+            }}
             aria-hidden="true"
           />
         </>
@@ -217,7 +235,7 @@ export const HeroEffects: React.FC<HeroEffectsProps> = ({
 
         {badge?.enabled && badge?.text && (
           <div
-            className="hero-effects__badge inline-block bg-red text-white font-bangers text-[22px] tracking-[0.1em] px-6 py-1.5 mt-8 mb-8"
+            className="hero-effects__badge inline-flex items-center gap-2 bg-red text-white font-bangers text-[22px] tracking-[0.1em] px-6 py-1.5 mt-8 mb-8"
             style={{
               transform: 'rotate(-3deg)',
               boxShadow: '4px 4px 0 #ffee00, 8px 8px 0 rgba(255,0,0,0.2)',
@@ -225,6 +243,13 @@ export const HeroEffects: React.FC<HeroEffectsProps> = ({
               willChange: 'transform',
             }}
           >
+            <img
+              src="/images/theme/lightning.png"
+              alt=""
+              className="w-[18px] h-auto"
+              style={{ filter: 'brightness(0) invert(1)' }}
+              aria-hidden="true"
+            />
             {badge.text}
           </div>
         )}
@@ -237,17 +262,30 @@ export const HeroEffects: React.FC<HeroEffectsProps> = ({
 
         {Array.isArray(links) && links.length > 0 && (
           <div className="hero-effects__ctas flex gap-5 justify-center flex-wrap">
-            {links.map(({ link }, i) => (
-              <CMSLink
-                key={i}
-                {...link}
-                className={
-                  i === 0
-                    ? 'hero-effects__btn inline-flex items-center gap-2.5 px-9 py-3.5 font-bangers text-2xl tracking-[0.12em] uppercase no-underline bg-red text-white border-[3px] border-white transition-transform duration-100 hover:scale-[1.04] hover:-rotate-1 shadow-[5px_5px_0_#ffee00,10px_10px_0_rgba(255,0,0,0.15)]'
-                    : 'hero-effects__btn inline-flex items-center gap-2.5 px-9 py-3.5 font-bangers text-2xl tracking-[0.12em] uppercase no-underline text-yellow border-[3px] border-yellow transition-transform duration-100 hover:scale-[1.04] hover:-rotate-1 hover:bg-yellow/10 shadow-[5px_5px_0_rgba(255,238,0,0.2)]'
-                }
-              />
-            ))}
+            {links.map(({ link }, i) => {
+              const iconSrc = i === 0 ? '/images/theme/play.png' : '/images/theme/upload.png'
+              return (
+                <CMSLink
+                  key={i}
+                  {...link}
+                  label={undefined}
+                  className={
+                    i === 0
+                      ? 'hero-effects__btn inline-flex items-center gap-2.5 px-9 py-3.5 font-bangers text-2xl tracking-[0.12em] uppercase no-underline bg-red text-white border-[3px] border-white transition-transform duration-100 hover:scale-[1.04] hover:-rotate-1 shadow-[5px_5px_0_#ffee00,10px_10px_0_rgba(255,0,0,0.15)]'
+                      : 'hero-effects__btn inline-flex items-center gap-2.5 px-9 py-3.5 font-bangers text-2xl tracking-[0.12em] uppercase no-underline text-yellow border-[3px] border-yellow transition-transform duration-100 hover:scale-[1.04] hover:-rotate-1 hover:bg-yellow/10 shadow-[5px_5px_0_rgba(255,238,0,0.2)]'
+                  }
+                >
+                  <img
+                    src={iconSrc}
+                    alt=""
+                    className="w-4 h-auto"
+                    style={{ filter: 'brightness(0) invert(1)' }}
+                    aria-hidden="true"
+                  />
+                  {link.label}
+                </CMSLink>
+              )
+            })}
           </div>
         )}
       </div>

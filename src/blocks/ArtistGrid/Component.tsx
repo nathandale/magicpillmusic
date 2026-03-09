@@ -62,11 +62,10 @@ function ArtistCard({ artist }: { artist: Artist }) {
   return (
     <Link
       href={`/artists/${artist.slug}`}
-      className="group relative bg-[#0a0000] border-2 border-red p-7 text-center no-underline text-inherit overflow-hidden flex flex-col items-center gap-2 hover:scale-[1.02] hover:-rotate-[0.5deg] hover:border-yellow hover:z-10 transition-all duration-150"
+      className="group relative bg-[#080808] border-b-2 border-red/30 p-7 text-center no-underline text-inherit overflow-hidden flex flex-col items-center gap-2 hover:border-red hover:shadow-[0_0_20px_rgba(255,0,0,0.15)] hover:z-10 transition-all duration-150"
     >
       <div
-        className="w-[72px] h-[72px] rounded-full border-[3px] border-red flex items-center justify-center font-bangers text-[26px] tracking-[0.05em] text-red bg-[#0a0000] relative z-[1] group-hover:border-yellow group-hover:text-yellow transition-colors duration-150"
-        style={{ boxShadow: '0 0 15px rgba(255,0,0,0.3), inset 0 0 15px rgba(255,0,0,0.05)' }}
+        className="w-[72px] h-[72px] rounded-full border border-red/40 flex items-center justify-center font-bangers text-[26px] tracking-[0.05em] text-red bg-[#080808] relative z-[1] group-hover:border-yellow/60 group-hover:text-yellow transition-colors duration-150"
       >
         {initials}
       </div>
@@ -78,8 +77,15 @@ function ArtistCard({ artist }: { artist: Artist }) {
           {artist.bio}
         </div>
       )}
-      <div className="mt-2.5 font-bangers text-lg tracking-[0.15em] uppercase text-red border-2 border-red px-5 py-1 relative z-[1] group-hover:text-yellow group-hover:border-yellow group-hover:bg-yellow/5 transition-all duration-150">
-        &#9654; Listen
+      <div className="mt-2.5 inline-flex items-center gap-2 font-bangers text-lg tracking-[0.15em] uppercase text-red border border-red/40 px-5 py-1 relative z-[1] group-hover:text-yellow group-hover:border-yellow/60 group-hover:bg-yellow/5 transition-all duration-150">
+        <img
+          src="/images/theme/lightning.png"
+          alt=""
+          className="w-4 h-auto"
+          style={{ filter: 'brightness(0) invert(1)' }}
+          aria-hidden="true"
+        />
+        Listen
       </div>
     </Link>
   )
