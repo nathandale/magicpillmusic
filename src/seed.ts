@@ -55,10 +55,39 @@ async function seed(): Promise<void> {
     },
   })
 
+  console.log('Finding admin user...')
+  const adminUsers = await payload.find({
+    collection: 'users',
+    where: { email: { equals: 'admin@magicpillmusic.com' } },
+    limit: 1,
+  })
+
+  let adminUserId: number
+  if (adminUsers.docs.length > 0) {
+    adminUserId = adminUsers.docs[0].id
+    await payload.update({
+      collection: 'users',
+      id: adminUserId,
+      data: { roles: ['admin'] },
+    })
+  } else {
+    const newAdmin = await payload.create({
+      collection: 'users',
+      data: {
+        name: 'Nathan Dale',
+        email: 'admin@magicpillmusic.com',
+        password: 'admin123!',
+        roles: ['admin'],
+      },
+    })
+    adminUserId = newAdmin.id
+  }
+
   console.log('Creating artist...')
   const artist = await payload.create({
     collection: 'artists',
     data: {
+      user: adminUserId,
       name: 'Nathan Dale',
       slug: 'nathan-dale',
       bio: 'Independent musician and podcaster',

@@ -1,9 +1,10 @@
+// DEMUPUB — Decentralized Music Publisher
 import type { GlobalConfig } from 'payload'
 
 export const PublishingSettings: GlobalConfig = {
   slug: 'publishing-settings',
   admin: {
-    group: 'Settings',
+    group: 'DEMUPUB',
   },
   access: {
     read: () => true,

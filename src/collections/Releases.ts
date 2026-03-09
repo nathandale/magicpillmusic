@@ -1,4 +1,10 @@
+// DEMUPUB — Decentralized Music Publisher
 import type { CollectionConfig } from 'payload'
+
+import { anyone } from '../access/anyone'
+import { authenticated } from '../access/authenticated'
+import { isAdmin } from '../access/roles'
+import type { User } from '@/payload-types'
 
 export const GENRE_OPTIONS = [
   { label: 'Alternative', value: 'Alternative' },
@@ -24,10 +30,13 @@ export const Releases: CollectionConfig = {
   admin: {
     useAsTitle: 'title',
     defaultColumns: ['title', 'type', 'artist', 'releaseDate', 'status'],
-    group: 'Music',
+    group: 'DEMUPUB',
   },
   access: {
-    read: () => true,
+    read: anyone,
+    create: authenticated,
+    update: authenticated,
+    delete: ({ req: { user } }) => isAdmin(user as User | null),
   },
   fields: [
     {
@@ -87,7 +96,6 @@ export const Releases: CollectionConfig = {
         position: 'sidebar',
       },
     },
-    // ── Artwork ──
     {
       name: 'coverImage',
       type: 'upload',
@@ -104,12 +112,10 @@ export const Releases: CollectionConfig = {
         description: 'Wide banner image (3000x1000 recommended)',
       },
     },
-    // ── Description ──
     {
       name: 'description',
       type: 'textarea',
     },
-    // ── Content flags ──
     {
       name: 'explicit',
       type: 'checkbox',
@@ -119,7 +125,6 @@ export const Releases: CollectionConfig = {
         description: 'Contains explicit content',
       },
     },
-    // ── Genre / Subgenre ──
     {
       name: 'genre',
       type: 'select',
@@ -140,7 +145,6 @@ export const Releases: CollectionConfig = {
         },
       ],
     },
-    // ── Publishing / Distribution ──
     {
       name: 'feedLocked',
       type: 'checkbox',
@@ -177,7 +181,6 @@ export const Releases: CollectionConfig = {
         description: 'Nostr or social discussion URL',
       },
     },
-    // ── Funding links ──
     {
       name: 'fundingLinks',
       type: 'array',
@@ -200,7 +203,6 @@ export const Releases: CollectionConfig = {
         },
       ],
     },
-    // ── Value / Lightning splits ──
     {
       name: 'suggestedSats',
       type: 'number',
@@ -230,7 +232,6 @@ export const Releases: CollectionConfig = {
         description: 'Stable feed GUID for this release (auto-generated)',
       },
     },
-    // ── Publish status ──
     {
       name: 'status',
       type: 'select',

@@ -76,6 +76,7 @@ export interface Config {
     releases: Release;
     tracks: Track;
     'value-splits': ValueSplit;
+    'audio-media': AudioMedia;
     redirects: Redirect;
     forms: Form;
     'form-submissions': FormSubmission;
@@ -102,6 +103,7 @@ export interface Config {
     releases: ReleasesSelect<false> | ReleasesSelect<true>;
     tracks: TracksSelect<false> | TracksSelect<true>;
     'value-splits': ValueSplitsSelect<false> | ValueSplitsSelect<true>;
+    'audio-media': AudioMediaSelect<false> | AudioMediaSelect<true>;
     redirects: RedirectsSelect<false> | RedirectsSelect<true>;
     forms: FormsSelect<false> | FormsSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
@@ -484,6 +486,7 @@ export interface Category {
 export interface User {
   id: number;
   name?: string | null;
+  roles: ('admin' | 'publisher' | 'artist')[];
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -885,6 +888,10 @@ export interface TickerBlock {
  */
 export interface Artist {
   id: number;
+  /**
+   * Account that owns this artist profile
+   */
+  user?: (number | null) | User;
   name: string;
   slug: string;
   bio?: string | null;
@@ -1027,9 +1034,9 @@ export interface Track {
    */
   trackNumber: number;
   /**
-   * Audio file (MP3/WAV/FLAC/OGG)
+   * Audio file upload (admin and publisher only)
    */
-  audioFile?: (number | null) | Media;
+  audioFile?: (number | null) | AudioMedia;
   /**
    * External audio URL (if not using upload)
    */
@@ -1104,6 +1111,28 @@ export interface Track {
   guid?: string | null;
   updatedAt: string;
   createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "audio-media".
+ */
+export interface AudioMedia {
+  id: number;
+  /**
+   * Display name for this audio file
+   */
+  title?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1367,6 +1396,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'value-splits';
         value: number | ValueSplit;
+      } | null)
+    | ({
+        relationTo: 'audio-media';
+        value: number | AudioMedia;
       } | null)
     | ({
         relationTo: 'redirects';
@@ -1765,6 +1798,7 @@ export interface CategoriesSelect<T extends boolean = true> {
  */
 export interface UsersSelect<T extends boolean = true> {
   name?: T;
+  roles?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -1787,6 +1821,7 @@ export interface UsersSelect<T extends boolean = true> {
  * via the `definition` "artists_select".
  */
 export interface ArtistsSelect<T extends boolean = true> {
+  user?: T;
   name?: T;
   slug?: T;
   bio?: T;
@@ -1891,6 +1926,24 @@ export interface ValueSplitsSelect<T extends boolean = true> {
   role?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "audio-media_select".
+ */
+export interface AudioMediaSelect<T extends boolean = true> {
+  title?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

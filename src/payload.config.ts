@@ -14,6 +14,7 @@ import { Artists } from './collections/Artists'
 import { Releases } from './collections/Releases'
 import { Tracks } from './collections/Tracks'
 import { ValueSplits } from './collections/ValueSplits'
+import { AudioMedia } from './collections/AudioMedia'
 import { Footer } from './Footer/config'
 import { Header } from './Header/config'
 import { PublishingSettings } from './globals/PublishingSettings'
@@ -68,7 +69,7 @@ export default buildConfig({
       connectionString: process.env.DATABASE_URL || '',
     },
   }),
-  collections: [Pages, Posts, Media, Categories, Users, Artists, Releases, Tracks, ValueSplits],
+  collections: [Pages, Posts, Media, Categories, Users, Artists, Releases, Tracks, ValueSplits, AudioMedia],
   cors: [getServerSideURL()].filter(Boolean),
   globals: [Header, Footer, PublishingSettings],
   plugins,

@@ -1,14 +1,23 @@
+// DEMUPUB — Decentralized Music Publisher
 import type { CollectionConfig } from 'payload'
+
+import { anyone } from '../access/anyone'
+import { authenticated } from '../access/authenticated'
+import { isAdmin } from '../access/roles'
+import type { User } from '@/payload-types'
 
 export const ValueSplits: CollectionConfig = {
   slug: 'value-splits',
   admin: {
     useAsTitle: 'recipientName',
     defaultColumns: ['recipientName', 'release', 'track', 'percentage', 'lightningAddress'],
-    group: 'Music',
+    group: 'DEMUPUB',
   },
   access: {
-    read: () => true,
+    read: anyone,
+    create: authenticated,
+    update: authenticated,
+    delete: ({ req: { user } }) => isAdmin(user as User | null),
   },
   fields: [
     {

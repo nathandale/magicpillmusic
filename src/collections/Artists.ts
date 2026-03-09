@@ -1,16 +1,38 @@
+// DEMUPUB — Decentralized Music Publisher
 import type { CollectionConfig } from 'payload'
+
+import { anyone } from '../access/anyone'
+import { authenticated } from '../access/authenticated'
+import { isAdmin, type Role } from '../access/roles'
+import type { User } from '@/payload-types'
 
 export const Artists: CollectionConfig = {
   slug: 'artists',
   admin: {
     useAsTitle: 'name',
-    defaultColumns: ['name', 'slug', 'website', 'status'],
-    group: 'Music',
+    defaultColumns: ['name', 'slug', 'user', 'status'],
+    group: 'DEMUPUB',
   },
   access: {
-    read: () => true,
+    read: anyone,
+    create: authenticated,
+    update: ({ req: { user } }) => {
+      if (!user) return false
+      if (isAdmin(user as User)) return true
+      return { user: { equals: user.id } }
+    },
+    delete: ({ req: { user } }) => isAdmin(user as User | null),
   },
   fields: [
+    {
+      name: 'user',
+      type: 'relationship',
+      relationTo: 'users',
+      admin: {
+        position: 'sidebar',
+        description: 'Account that owns this artist profile',
+      },
+    },
     {
       name: 'name',
       type: 'text',

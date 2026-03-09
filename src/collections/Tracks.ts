@@ -1,16 +1,24 @@
+// DEMUPUB — Decentralized Music Publisher
 import type { CollectionConfig } from 'payload'
 
+import { anyone } from '../access/anyone'
+import { authenticated } from '../access/authenticated'
+import { isAdmin, publisherFieldAccess } from '../access/roles'
 import { GENRE_OPTIONS } from './Releases'
+import type { User } from '@/payload-types'
 
 export const Tracks: CollectionConfig = {
   slug: 'tracks',
   admin: {
     useAsTitle: 'title',
     defaultColumns: ['title', 'release', 'trackNumber', 'createdAt'],
-    group: 'Music',
+    group: 'DEMUPUB',
   },
   access: {
-    read: () => true,
+    read: anyone,
+    create: authenticated,
+    update: authenticated,
+    delete: ({ req: { user } }) => isAdmin(user as User | null),
   },
   fields: [
     {
@@ -44,13 +52,15 @@ export const Tracks: CollectionConfig = {
         description: 'Position in the release tracklist',
       },
     },
-    // ── Audio file ──
     {
       name: 'audioFile',
       type: 'upload',
-      relationTo: 'media',
+      relationTo: 'audio-media',
       admin: {
-        description: 'Audio file (MP3/WAV/FLAC/OGG)',
+        description: 'Audio file upload (admin and publisher only)',
+      },
+      access: {
+        update: publisherFieldAccess,
       },
     },
     {
@@ -82,7 +92,6 @@ export const Tracks: CollectionConfig = {
         description: 'Duration in seconds',
       },
     },
-    // ── Video (optional) ──
     {
       name: 'videoUrl',
       type: 'text',
@@ -102,7 +111,6 @@ export const Tracks: CollectionConfig = {
         description: 'Video file size in bytes',
       },
     },
-    // ── Transcript / lyrics ──
     {
       name: 'transcriptUrl',
       type: 'text',
@@ -110,7 +118,6 @@ export const Tracks: CollectionConfig = {
         description: 'WebVTT file URL for lyrics/captions',
       },
     },
-    // ── Per-track overrides ──
     {
       name: 'artwork',
       type: 'upload',
@@ -135,7 +142,6 @@ export const Tracks: CollectionConfig = {
         description: 'International Standard Recording Code',
       },
     },
-    // ── Genre override ──
     {
       name: 'genre',
       type: 'select',
@@ -156,7 +162,6 @@ export const Tracks: CollectionConfig = {
         },
       ],
     },
-    // ── GUID ──
     {
       name: 'guid',
       type: 'text',
