@@ -297,7 +297,7 @@ async function seed(): Promise<void> {
       hero: {
         type: 'heroEffects',
         media: heroMedia.id,
-        preHeading: '\u26A1 Artist Cooperative \u00B7 Lightning Network \u26A1',
+        preHeading: '\u26A1 Decentralized Music Publishing \u26A1',
         titleLines: [
           {
             text: 'Magic',
@@ -329,11 +329,11 @@ async function seed(): Promise<void> {
         ],
         badge: {
           enabled: true,
-          text: '\u2605 Music is Medicine \u2605',
+          text: '\u26A1 PUBLISH YOUR MUSIC \u26A1',
         },
         tagline:
-          '{red}Direct payments.{/red} No middlemen.\n{yel}90%{/yel} to the artist. Every sat. Every time.',
-        ghostText: 'MPM',
+          '{red}Publish. Own. Get Paid.{/red}\n{yel}$14.99/yr.{/yel} Your music on Podcasting 2.0. Listeners pay you directly via Lightning.',
+        ghostText: 'DEMUPUB',
         enableOrnaments: true,
         links: [
           {
@@ -348,7 +348,7 @@ async function seed(): Promise<void> {
             link: {
               type: 'custom',
               appearance: 'outline',
-              label: 'How It Works',
+              label: 'Start Publishing',
               url: '/releases',
             },
           },
@@ -359,11 +359,11 @@ async function seed(): Promise<void> {
           blockName: 'Ticker',
           blockType: 'ticker',
           items: [
-            { text: 'NEW RELEASES DROPPING WEEKLY' },
-            { text: 'STREAM WITH VALUE4VALUE' },
-            { text: 'SUPPORT ARTISTS DIRECTLY' },
+            { text: 'PUBLISH YOUR MUSIC FOR $14.99/YEAR' },
+            { text: 'OWN YOUR CONTENT FOREVER' },
+            { text: 'GET PAID VIA LIGHTNING NETWORK' },
             { text: 'PODCASTING 2.0 POWERED' },
-            { text: 'INDEPENDENT MUSIC ONLY' },
+            { text: 'NO MIDDLEMEN \u2014 DIRECT TO FANS' },
           ],
           speed: 14,
         },
@@ -402,7 +402,7 @@ async function seed(): Promise<void> {
                       format: 0,
                       mode: 'normal',
                       style: '',
-                      text: 'Independent creators publishing through Magic Pill Music',
+                      text: 'Independent musicians publishing through DEMUPUB',
                       version: 1,
                     },
                   ],
@@ -429,7 +429,7 @@ async function seed(): Promise<void> {
               link: {
                 type: 'custom',
                 appearance: 'default',
-                label: 'View All Releases',
+                label: 'Start Publishing',
                 url: '/releases',
               },
             },
@@ -447,7 +447,7 @@ async function seed(): Promise<void> {
                       format: 0,
                       mode: 'normal',
                       style: '',
-                      text: 'Support Independent Music',
+                      text: 'Publish Your Music Today',
                       version: 1,
                     },
                   ],
@@ -466,7 +466,7 @@ async function seed(): Promise<void> {
                       format: 0,
                       mode: 'normal',
                       style: '',
-                      text: 'Every stream sends sats directly to the artists. No middlemen. No gatekeepers. Just music and value.',
+                      text: 'Upload your tracks, set your Lightning address, and start earning from day one. $14.99/year \u2014 no hidden fees, no middlemen.',
                       version: 1,
                     },
                   ],
@@ -486,9 +486,9 @@ async function seed(): Promise<void> {
         },
       ],
       meta: {
-        title: 'Magic Pill Music — Independent Music Publishing',
+        title: 'DEMUPUB \u2014 Decentralized Music Publishing',
         description:
-          'Independent music publishing powered by Podcasting 2.0 and Value4Value. Discover artists, stream music, and support creators directly.',
+          'Publish your music on Podcasting 2.0 for $14.99/year. Get paid directly via Lightning Network. No middlemen, no gatekeepers.',
       },
     },
   })
