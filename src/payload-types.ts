@@ -169,7 +169,7 @@ export interface Page {
   id: number;
   title: string;
   hero: {
-    type: 'none' | 'highImpact' | 'mediumImpact' | 'lowImpact';
+    type: 'none' | 'heroEffects' | 'highImpact' | 'mediumImpact' | 'lowImpact';
     richText?: {
       root: {
         type: string;
@@ -185,6 +185,47 @@ export interface Page {
       };
       [k: string]: unknown;
     } | null;
+    /**
+     * Small text above the title (e.g. "⚡ Artist Cooperative · Lightning Network ⚡")
+     */
+    preHeading?: string | null;
+    /**
+     * Each line of the hero title can have its own font, color, size, and animation
+     */
+    titleLines?:
+      | {
+          text: string;
+          font?: ('bangers' | 'vt323' | 'blackHanSans') | null;
+          color?: ('white' | 'red' | 'yellow' | 'acid' | 'outline-white' | 'outline-red') | null;
+          size?: ('xl' | 'lg' | 'md' | 'sm') | null;
+          animation?: ('none' | 'glitch1' | 'glitch2' | 'shake' | 'pulse-red' | 'flicker') | null;
+          /**
+           * Adds an offset red shadow duplicate behind this line with its own glitch animation
+           */
+          enableGhostLayer?: boolean | null;
+          /**
+           * Slight rotation for a hand-placed look (e.g. -2)
+           */
+          rotation?: number | null;
+          id?: string | null;
+        }[]
+      | null;
+    badge?: {
+      enabled?: boolean | null;
+      /**
+       * e.g. "★ Music is Medicine ★"
+       */
+      text?: string | null;
+    };
+    /**
+     * Supporting text below the title. Use {red}text{/red} and {yel}text{/yel} for colored spans.
+     */
+    tagline?: string | null;
+    /**
+     * Large diagonal decorative text behind the hero (e.g. "MPM")
+     */
+    ghostText?: string | null;
+    enableOrnaments?: boolean | null;
     links?:
       | {
           link: {
@@ -1400,6 +1441,28 @@ export interface PagesSelect<T extends boolean = true> {
     | {
         type?: T;
         richText?: T;
+        preHeading?: T;
+        titleLines?:
+          | T
+          | {
+              text?: T;
+              font?: T;
+              color?: T;
+              size?: T;
+              animation?: T;
+              enableGhostLayer?: T;
+              rotation?: T;
+              id?: T;
+            };
+        badge?:
+          | T
+          | {
+              enabled?: T;
+              text?: T;
+            };
+        tagline?: T;
+        ghostText?: T;
+        enableOrnaments?: T;
         links?:
           | T
           | {

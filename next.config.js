@@ -18,6 +18,14 @@ const nextConfig = {
           protocol: url.protocol.replace(':', ''),
         }
       }),
+      {
+        hostname: '**.ndlocal.lan',
+        protocol: 'http',
+      },
+      {
+        hostname: 'magicpillmusic.com',
+        protocol: 'https',
+      },
     ],
   },
   webpack: (webpackConfig) => {

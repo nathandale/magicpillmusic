@@ -266,63 +266,52 @@ async function seed(): Promise<void> {
       title: 'Home',
       _status: 'published',
       hero: {
-        type: 'highImpact',
+        type: 'heroEffects',
         media: heroMedia.id,
-        richText: {
-          root: {
-            type: 'root',
-            children: [
-              {
-                type: 'heading',
-                children: [
-                  {
-                    type: 'text',
-                    detail: 0,
-                    format: 0,
-                    mode: 'normal',
-                    style: '',
-                    text: 'Magic Pill Music',
-                    version: 1,
-                  },
-                ],
-                direction: 'ltr',
-                format: '',
-                indent: 0,
-                tag: 'h1',
-                version: 1,
-              },
-              {
-                type: 'paragraph',
-                children: [
-                  {
-                    type: 'text',
-                    detail: 0,
-                    format: 0,
-                    mode: 'normal',
-                    style: '',
-                    text: 'Independent music publishing powered by Podcasting 2.0 and Value4Value. Discover artists, stream music, and support creators directly.',
-                    version: 1,
-                  },
-                ],
-                direction: 'ltr',
-                format: '',
-                indent: 0,
-                textFormat: 0,
-                version: 1,
-              },
-            ],
-            direction: 'ltr',
-            format: '',
-            indent: 0,
-            version: 1,
+        preHeading: '\u26A1 Artist Cooperative \u00B7 Lightning Network \u26A1',
+        titleLines: [
+          {
+            text: 'Magic',
+            font: 'bangers',
+            color: 'white',
+            size: 'xl',
+            animation: 'glitch1',
+            enableGhostLayer: true,
+            rotation: 0,
           },
+          {
+            text: 'Pill',
+            font: 'bangers',
+            color: 'yellow',
+            size: 'lg',
+            animation: 'none',
+            enableGhostLayer: false,
+            rotation: 0,
+          },
+          {
+            text: 'Music',
+            font: 'blackHanSans',
+            color: 'outline-white',
+            size: 'md',
+            animation: 'none',
+            enableGhostLayer: false,
+            rotation: -2,
+          },
+        ],
+        badge: {
+          enabled: true,
+          text: '\u2605 Music is Medicine \u2605',
         },
+        tagline:
+          '{red}Direct payments.{/red} No middlemen.\n{yel}90%{/yel} to the artist. Every sat. Every time.',
+        ghostText: 'MPM',
+        enableOrnaments: true,
         links: [
           {
             link: {
               type: 'custom',
               appearance: 'default',
-              label: 'Browse Artists',
+              label: 'Explore Artists',
               url: '/artists',
             },
           },
@@ -330,7 +319,7 @@ async function seed(): Promise<void> {
             link: {
               type: 'custom',
               appearance: 'outline',
-              label: 'Releases',
+              label: 'How It Works',
               url: '/releases',
             },
           },

@@ -8,6 +8,7 @@ import {
 } from '@payloadcms/richtext-lexical'
 
 import { linkGroup } from '@/fields/linkGroup'
+import { heroEffectsFields } from '@/heros/HeroEffects/config'
 
 export const hero: Field = {
   name: 'hero',
@@ -22,6 +23,10 @@ export const hero: Field = {
         {
           label: 'None',
           value: 'none',
+        },
+        {
+          label: 'Hero Effects',
+          value: 'heroEffects',
         },
         {
           label: 'High Impact',
@@ -52,7 +57,11 @@ export const hero: Field = {
         },
       }),
       label: false,
+      admin: {
+        condition: (_, { type } = {}) => type !== 'heroEffects',
+      },
     },
+    ...heroEffectsFields,
     linkGroup({
       overrides: {
         maxRows: 2,
@@ -62,7 +71,8 @@ export const hero: Field = {
       name: 'media',
       type: 'upload',
       admin: {
-        condition: (_, { type } = {}) => ['highImpact', 'mediumImpact'].includes(type),
+        condition: (_, { type } = {}) =>
+          ['highImpact', 'mediumImpact', 'heroEffects'].includes(type),
       },
       relationTo: 'media',
       required: true,
