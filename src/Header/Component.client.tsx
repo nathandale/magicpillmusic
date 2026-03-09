@@ -2,7 +2,7 @@
 import { useHeaderTheme } from '@/providers/HeaderTheme'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect } from 'react'
 
 import type { Header } from '@/payload-types'
 
@@ -14,9 +14,7 @@ interface HeaderClientProps {
 }
 
 export const HeaderClient: React.FC<HeaderClientProps> = ({ data }) => {
-  /* Storing the value in a useState to avoid hydration errors */
-  const [theme, setTheme] = useState<string | null>(null)
-  const { headerTheme, setHeaderTheme } = useHeaderTheme()
+  const { setHeaderTheme } = useHeaderTheme()
   const pathname = usePathname()
 
   useEffect(() => {
@@ -24,16 +22,14 @@ export const HeaderClient: React.FC<HeaderClientProps> = ({ data }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
 
-  useEffect(() => {
-    if (headerTheme && headerTheme !== theme) setTheme(headerTheme)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [headerTheme])
-
   return (
-    <header className="container relative z-20   " {...(theme ? { 'data-theme': theme } : {})}>
-      <div className="py-8 flex justify-between">
-        <Link href="/">
-          <Logo loading="eager" priority="high" className="invert dark:invert-0" />
+    <header
+      className="sticky top-0 z-[500] bg-black border-b-[3px] border-red"
+      style={{ animation: 'flicker 6s infinite' }}
+    >
+      <div className="flex items-center justify-between px-8 py-3">
+        <Link href="/" className="flex items-center gap-3 no-underline">
+          <Logo loading="eager" priority="high" />
         </Link>
         <HeaderNav data={data} />
       </div>

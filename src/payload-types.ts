@@ -222,6 +222,8 @@ export interface Page {
       }
     | ArchiveBlock
     | FormBlock
+    | ArtistGridBlock
+    | TickerBlock
   )[];
   meta?: {
     title?: string | null;
@@ -791,6 +793,50 @@ export interface Form {
     | null;
   updatedAt: string;
   createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ArtistGridBlock".
+ */
+export interface ArtistGridBlock {
+  introContent?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  limit?: number | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'artistGrid';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TickerBlock".
+ */
+export interface TickerBlock {
+  items?:
+    | {
+        text: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Lower = faster scrolling
+   */
+  speed?: number | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'ticker';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1379,6 +1425,8 @@ export interface PagesSelect<T extends boolean = true> {
         mediaBlock?: T | MediaBlockSelect<T>;
         archive?: T | ArchiveBlockSelect<T>;
         formBlock?: T | FormBlockSelect<T>;
+        artistGrid?: T | ArtistGridBlockSelect<T>;
+        ticker?: T | TickerBlockSelect<T>;
       };
   meta?:
     | T
@@ -1475,6 +1523,31 @@ export interface FormBlockSelect<T extends boolean = true> {
   form?: T;
   enableIntro?: T;
   introContent?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ArtistGridBlock_select".
+ */
+export interface ArtistGridBlockSelect<T extends boolean = true> {
+  introContent?: T;
+  limit?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TickerBlock_select".
+ */
+export interface TickerBlockSelect<T extends boolean = true> {
+  items?:
+    | T
+    | {
+        text?: T;
+        id?: T;
+      };
+  speed?: T;
   id?: T;
   blockName?: T;
 }

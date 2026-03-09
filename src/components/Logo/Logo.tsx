@@ -14,16 +14,27 @@ export const Logo = (props: Props) => {
   const priority = priorityFromProps || 'low'
 
   return (
-    /* eslint-disable @next/next/no-img-element */
-    <img
-      alt="Payload Logo"
-      width={193}
-      height={34}
-      loading={loading}
-      fetchPriority={priority}
-      decoding="async"
-      className={clsx('max-w-[9.375rem] w-full h-[34px]', className)}
-      src="https://raw.githubusercontent.com/payloadcms/payload/main/packages/ui/src/assets/payload-logo-light.svg"
-    />
+    <span className={clsx('flex items-center gap-3', className)}>
+      <img
+        alt="Magic Pill Music"
+        width={36}
+        height={36}
+        loading={loading}
+        fetchPriority={priority}
+        decoding="async"
+        className="w-9 h-9"
+        style={{
+          filter: 'invert(1) sepia(1) saturate(10) hue-rotate(-10deg)',
+          animation: 'rotate-float 4s ease-in-out infinite',
+        }}
+        src="/images/theme/logo.svg"
+      />
+      <span
+        className="font-bangers text-[22px] tracking-[0.1em] text-red"
+        style={{ textShadow: '2px 2px 0 #ffee00, 4px 4px 0 rgba(255,0,0,0.3)' }}
+      >
+        Magic Pill Music
+      </span>
+    </span>
   )
 }

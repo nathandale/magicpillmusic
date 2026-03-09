@@ -2,6 +2,17 @@
 const config = {
   theme: {
     extend: {
+      colors: {
+        void: '#000000',
+        red: '#ff0000',
+        yellow: '#ffee00',
+        acid: '#ccff00',
+      },
+      fontFamily: {
+        bangers: ['Bangers', 'cursive'],
+        vt323: ['VT323', 'monospace'],
+        bhs: ['Black Han Sans', 'sans-serif'],
+      },
       typography: () => ({
         DEFAULT: {
           css: [

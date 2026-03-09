@@ -1,7 +1,13 @@
 import 'dotenv/config'
 import { getPayload } from 'payload'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 import config from '@payload-config'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const BASE_FEED_URL = 'http://localhost:3000'
 
@@ -220,6 +226,308 @@ async function seed(): Promise<void> {
       role: 'Producer',
     },
   })
+
+  console.log('Creating hero media...')
+  const heroImagePath = path.resolve(__dirname, '../public/images/theme/hero_bg.webp')
+  const heroImageBuffer = fs.readFileSync(heroImagePath)
+  const heroMedia = await payload.create({
+    collection: 'media',
+    data: {
+      alt: 'Magic Pill Music hero background',
+    },
+    file: {
+      data: heroImageBuffer,
+      mimetype: 'image/webp',
+      name: 'hero_bg.webp',
+      size: heroImageBuffer.length,
+    },
+  })
+
+  console.log('Seeding homepage...')
+
+  const existingHome = await payload.find({
+    collection: 'pages',
+    where: { slug: { equals: 'home' } },
+    limit: 1,
+  })
+  if (existingHome.docs.length > 0) {
+    await payload.delete({
+      collection: 'pages',
+      id: existingHome.docs[0].id,
+      context: { disableRevalidate: true },
+    })
+  }
+
+  await payload.create({
+    collection: 'pages',
+    context: { disableRevalidate: true },
+    data: {
+      slug: 'home',
+      title: 'Home',
+      _status: 'published',
+      hero: {
+        type: 'highImpact',
+        media: heroMedia.id,
+        richText: {
+          root: {
+            type: 'root',
+            children: [
+              {
+                type: 'heading',
+                children: [
+                  {
+                    type: 'text',
+                    detail: 0,
+                    format: 0,
+                    mode: 'normal',
+                    style: '',
+                    text: 'Magic Pill Music',
+                    version: 1,
+                  },
+                ],
+                direction: 'ltr',
+                format: '',
+                indent: 0,
+                tag: 'h1',
+                version: 1,
+              },
+              {
+                type: 'paragraph',
+                children: [
+                  {
+                    type: 'text',
+                    detail: 0,
+                    format: 0,
+                    mode: 'normal',
+                    style: '',
+                    text: 'Independent music publishing powered by Podcasting 2.0 and Value4Value. Discover artists, stream music, and support creators directly.',
+                    version: 1,
+                  },
+                ],
+                direction: 'ltr',
+                format: '',
+                indent: 0,
+                textFormat: 0,
+                version: 1,
+              },
+            ],
+            direction: 'ltr',
+            format: '',
+            indent: 0,
+            version: 1,
+          },
+        },
+        links: [
+          {
+            link: {
+              type: 'custom',
+              appearance: 'default',
+              label: 'Browse Artists',
+              url: '/artists',
+            },
+          },
+          {
+            link: {
+              type: 'custom',
+              appearance: 'outline',
+              label: 'Releases',
+              url: '/releases',
+            },
+          },
+        ],
+      },
+      layout: [
+        {
+          blockName: 'Ticker',
+          blockType: 'ticker',
+          items: [
+            { text: 'NEW RELEASES DROPPING WEEKLY' },
+            { text: 'STREAM WITH VALUE4VALUE' },
+            { text: 'SUPPORT ARTISTS DIRECTLY' },
+            { text: 'PODCASTING 2.0 POWERED' },
+            { text: 'INDEPENDENT MUSIC ONLY' },
+          ],
+          speed: 14,
+        },
+        {
+          blockName: 'Artist Grid',
+          blockType: 'artistGrid',
+          introContent: {
+            root: {
+              type: 'root',
+              children: [
+                {
+                  type: 'heading',
+                  children: [
+                    {
+                      type: 'text',
+                      detail: 0,
+                      format: 0,
+                      mode: 'normal',
+                      style: '',
+                      text: 'Our Artists',
+                      version: 1,
+                    },
+                  ],
+                  direction: 'ltr',
+                  format: '',
+                  indent: 0,
+                  tag: 'h2',
+                  version: 1,
+                },
+                {
+                  type: 'paragraph',
+                  children: [
+                    {
+                      type: 'text',
+                      detail: 0,
+                      format: 0,
+                      mode: 'normal',
+                      style: '',
+                      text: 'Independent creators publishing through Magic Pill Music',
+                      version: 1,
+                    },
+                  ],
+                  direction: 'ltr',
+                  format: '',
+                  indent: 0,
+                  textFormat: 0,
+                  version: 1,
+                },
+              ],
+              direction: 'ltr',
+              format: '',
+              indent: 0,
+              version: 1,
+            },
+          },
+          limit: 6,
+        },
+        {
+          blockName: 'CTA',
+          blockType: 'cta',
+          links: [
+            {
+              link: {
+                type: 'custom',
+                appearance: 'default',
+                label: 'View All Releases',
+                url: '/releases',
+              },
+            },
+          ],
+          richText: {
+            root: {
+              type: 'root',
+              children: [
+                {
+                  type: 'heading',
+                  children: [
+                    {
+                      type: 'text',
+                      detail: 0,
+                      format: 0,
+                      mode: 'normal',
+                      style: '',
+                      text: 'Support Independent Music',
+                      version: 1,
+                    },
+                  ],
+                  direction: 'ltr',
+                  format: '',
+                  indent: 0,
+                  tag: 'h3',
+                  version: 1,
+                },
+                {
+                  type: 'paragraph',
+                  children: [
+                    {
+                      type: 'text',
+                      detail: 0,
+                      format: 0,
+                      mode: 'normal',
+                      style: '',
+                      text: 'Every stream sends sats directly to the artists. No middlemen. No gatekeepers. Just music and value.',
+                      version: 1,
+                    },
+                  ],
+                  direction: 'ltr',
+                  format: '',
+                  indent: 0,
+                  textFormat: 0,
+                  version: 1,
+                },
+              ],
+              direction: 'ltr',
+              format: '',
+              indent: 0,
+              version: 1,
+            },
+          },
+        },
+      ],
+      meta: {
+        title: 'Magic Pill Music — Independent Music Publishing',
+        description:
+          'Independent music publishing powered by Podcasting 2.0 and Value4Value. Discover artists, stream music, and support creators directly.',
+      },
+    },
+  })
+
+  console.log('Homepage created.')
+
+  console.log('Seeding header navigation...')
+  await payload.updateGlobal({
+    slug: 'header',
+    context: { disableRevalidate: true },
+    data: {
+      navItems: [
+        {
+          link: {
+            type: 'custom',
+            label: 'Artists',
+            url: '/artists',
+          },
+        },
+        {
+          link: {
+            type: 'custom',
+            label: 'Releases',
+            url: '/releases',
+          },
+        },
+      ],
+    },
+  })
+
+  console.log('Header navigation seeded.')
+
+  console.log('Seeding footer navigation...')
+  await payload.updateGlobal({
+    slug: 'footer',
+    context: { disableRevalidate: true },
+    data: {
+      navItems: [
+        {
+          link: {
+            type: 'custom',
+            label: 'Artists',
+            url: '/artists',
+          },
+        },
+        {
+          link: {
+            type: 'custom',
+            label: 'Releases',
+            url: '/releases',
+          },
+        },
+      ],
+    },
+  })
+
+  console.log('Footer navigation seeded.')
 
   console.log('Seed complete.')
   console.log(`Feed URL: ${BASE_FEED_URL}/feeds/echoes-of-tomorrow.xml`)
