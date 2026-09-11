@@ -30,7 +30,7 @@ export default async function ArtistsPage() {
           className="font-vt323 text-xl tracking-[0.2em] uppercase text-red mb-2"
           style={{ textShadow: '0 0 8px #ff0000' }}
         >
-          // the roster
+          {'// the roster'}
         </div>
         <h1 className="font-bangers text-7xl tracking-[0.04em] uppercase text-white mb-12 leading-[0.9]">
           All Artists

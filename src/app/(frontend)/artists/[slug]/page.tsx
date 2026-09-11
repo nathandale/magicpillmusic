@@ -82,7 +82,7 @@ export default async function ArtistPage({ params: paramsPromise }: Args) {
           className="font-vt323 text-xl tracking-[0.2em] uppercase text-red mb-2"
           style={{ textShadow: '0 0 8px #ff0000' }}
         >
-          // discography
+          {'// discography'}
         </div>
         <h2 className="font-bangers text-5xl tracking-[0.04em] uppercase text-white mb-8 leading-[0.9]">
           Releases

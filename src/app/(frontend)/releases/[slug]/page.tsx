@@ -113,7 +113,7 @@ export default async function ReleasePage({ params: paramsPromise }: Args) {
               className="font-vt323 text-xl tracking-[0.2em] uppercase text-red mb-4"
               style={{ textShadow: '0 0 8px #ff0000' }}
             >
-              // tracklist
+              {'// tracklist'}
             </h2>
             <div className="border-2 border-red">
               {tracks.map((track, i) => (
@@ -163,7 +163,7 @@ export default async function ReleasePage({ params: paramsPromise }: Args) {
               className="font-vt323 text-xl tracking-[0.2em] uppercase text-red mb-4"
               style={{ textShadow: '0 0 8px #ff0000' }}
             >
-              // value splits
+              {'// value splits'}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {splits.map((split) => (
