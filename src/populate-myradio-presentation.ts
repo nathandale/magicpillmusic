@@ -36,7 +36,8 @@ async function run(): Promise<void> {
     const current = release.myradio ?? {}
     const next = {
       kicker: current.kicker || entry.kicker || undefined,
-      theme: current.theme || asTheme(entry.desktopTheme),
+      // 'catalog' is the schema default the migration wrote to every row, so treat it as unset.
+      theme: current.theme && current.theme !== 'catalog' ? current.theme : asTheme(entry.desktopTheme),
       heartUrl: current.heartUrl || entry.heartUrl || undefined,
       token: current.token || entry.token || undefined,
       isDefault: current.isDefault || entry.slug === manifest.defaultPlaylist,
