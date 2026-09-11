@@ -109,6 +109,25 @@ const artistDoc = (artist: Release['artist']): Artist | null => {
 
 const optionalTag = (name: string, value: string): string => (value ? `    <${name}>${xmlText(value)}</${name}>\n` : '')
 
+/**
+ * MY RADIO presentation fields, carried as <podcast:txt purpose="myradio:…">.
+ * podcast:txt is the spec's free-form text slot; other clients ignore unknown purposes.
+ */
+const myRadioTxtTags = (release: ReleaseWithFeedFields): string => {
+  const m = release.myradio
+  if (!m) return ''
+  const tag = (purpose: string, value: string | null | undefined): string =>
+    value ? `    <podcast:txt purpose="myradio:${purpose}">${xmlText(String(value))}</podcast:txt>\n` : ''
+  return (
+    tag('kicker', m.kicker) +
+    tag('theme', m.theme) +
+    tag('heartUrl', m.heartUrl) +
+    tag('token', m.token) +
+    (m.isDefault ? tag('default', 'true') : '') +
+    (m.terrestrialHandoff ? tag('terrestrialHandoff', 'true') : '')
+  )
+}
+
 export const buildReleaseFeedXml = ({
   release,
   tracks,
@@ -251,6 +270,7 @@ export const buildReleaseFeedXml = ({
       ? `    <podcast:socialInteract platform="nostr" url="${xmlAttr(resolveAbsoluteUrl(release.socialUrl, normalizedBaseUrl))}" />\n`
       : '') +
     (release.upc ? `    <podcast:txt purpose="upc">${xmlText(release.upc)}</podcast:txt>\n` : '') +
+    myRadioTxtTags(release) +
     (coverImageUrl ? `    <itunes:image href="${xmlAttr(coverImageUrl)}" />\n` : '') +
     (coverImageUrl
       ? '    <image>\n' +

@@ -212,6 +212,61 @@ export const Releases: CollectionConfig = {
         step: 100,
       },
     },
+    // ── MY RADIO presentation ──
+    // Everything the MY RADIO player shows or does for this release lives here, so
+    // nothing about a channel is hard-coded in the player. Carried in the feed as
+    // <podcast:txt purpose="myradio:…"> and ignored by every other P2.0 client.
+    {
+      name: 'myradio',
+      type: 'group',
+      label: 'MY RADIO',
+      admin: {
+        description: 'How this release appears and behaves as a channel on myradio.nathandale.com',
+      },
+      fields: [
+        {
+          name: 'kicker',
+          type: 'text',
+          admin: { description: 'Small caps line above the title, e.g. "LOOKING STAR / FIRST SIGNAL OUT"' },
+        },
+        {
+          name: 'theme',
+          type: 'select',
+          defaultValue: 'catalog',
+          options: [
+            { label: 'Catalog (default)', value: 'catalog' },
+            { label: 'Terrestrial', value: 'terrestrial' },
+            { label: 'Nathan Archive', value: 'nathan-archive' },
+            { label: 'Wooden Revolt', value: 'wooden-revolt' },
+            { label: 'Parade', value: 'parade' },
+            { label: 'Monochrome', value: 'monochrome' },
+          ],
+          admin: { description: 'Desktop visual theme for this channel' },
+        },
+        {
+          name: 'heartUrl',
+          type: 'text',
+          admin: { description: 'Link back to the matching section on nathandale.com/heart' },
+        },
+        {
+          name: 'token',
+          type: 'text',
+          admin: { description: 'Short URL alias, e.g. "mkp" → myradio.nathandale.com/playlist/mkp' },
+        },
+        {
+          name: 'isDefault',
+          type: 'checkbox',
+          defaultValue: false,
+          admin: { description: 'Load this channel first when MY RADIO opens (only one should be checked)' },
+        },
+        {
+          name: 'terrestrialHandoff',
+          type: 'checkbox',
+          defaultValue: false,
+          admin: { description: 'Enable the TERRESTRIAL → MY RADIO song handoff for this channel' },
+        },
+      ],
+    },
     {
       name: 'feedUrl',
       type: 'ui',

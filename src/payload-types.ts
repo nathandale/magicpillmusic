@@ -1013,6 +1013,35 @@ export interface Release {
    */
   suggestedSats?: number | null;
   /**
+   * How this release appears and behaves as a channel on myradio.nathandale.com
+   */
+  myradio?: {
+    /**
+     * Small caps line above the title, e.g. "LOOKING STAR / FIRST SIGNAL OUT"
+     */
+    kicker?: string | null;
+    /**
+     * Desktop visual theme for this channel
+     */
+    theme?: ('catalog' | 'terrestrial' | 'nathan-archive' | 'wooden-revolt' | 'parade' | 'monochrome') | null;
+    /**
+     * Link back to the matching section on nathandale.com/heart
+     */
+    heartUrl?: string | null;
+    /**
+     * Short URL alias, e.g. "mkp" → myradio.nathandale.com/playlist/mkp
+     */
+    token?: string | null;
+    /**
+     * Load this channel first when MY RADIO opens (only one should be checked)
+     */
+    isDefault?: boolean | null;
+    /**
+     * Enable the TERRESTRIAL → MY RADIO song handoff for this channel
+     */
+    terrestrialHandoff?: boolean | null;
+  };
+  /**
    * Stable feed GUID for this release (auto-generated)
    */
   releaseGuid?: string | null;
@@ -1874,6 +1903,16 @@ export interface ReleasesSelect<T extends boolean = true> {
         id?: T;
       };
   suggestedSats?: T;
+  myradio?:
+    | T
+    | {
+        kicker?: T;
+        theme?: T;
+        heartUrl?: T;
+        token?: T;
+        isDefault?: T;
+        terrestrialHandoff?: T;
+      };
   releaseGuid?: T;
   status?: T;
   updatedAt?: T;
