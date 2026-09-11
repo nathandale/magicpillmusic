@@ -2,6 +2,8 @@ import configPromise from '@payload-config'
 import { getPayload } from 'payload'
 
 import { buildReleaseFeedXml } from '../../../../lib/feed-builder'
+import { getServerSideURL } from '../../../../utilities/getURL'
+import { feedResponseHeaders } from '../headers'
 
 type RouteContext = {
   params: Promise<{
@@ -9,7 +11,7 @@ type RouteContext = {
   }>
 }
 
-export const GET = async (request: Request, context: RouteContext) => {
+export const GET = async (_request: Request, context: RouteContext) => {
   const { slug } = await context.params
 
   const payload = await getPayload({
@@ -33,7 +35,10 @@ export const GET = async (request: Request, context: RouteContext) => {
   const release = releaseResult.docs[0]
 
   if (!release) {
-    return new Response('Not Found', { status: 404 })
+    return new Response('Not Found', {
+      status: 404,
+      headers: { ...feedResponseHeaders, 'Content-Type': 'text/plain; charset=UTF-8' },
+    })
   }
 
   const [tracksResult, valueSplitsResult, settings] = await Promise.all([
@@ -63,7 +68,9 @@ export const GET = async (request: Request, context: RouteContext) => {
     }),
   ])
 
-  const baseFeedUrl = settings.baseFeedUrl?.trim() || new URL(request.url).origin
+  // NOTE: never derive this from request.url — nginx proxies to 127.0.0.1:3000, so the
+  // request origin is the internal host, not the public one.
+  const baseFeedUrl = settings.baseFeedUrl?.trim() || getServerSideURL()
 
   const xml = buildReleaseFeedXml({
     release,
@@ -75,8 +82,8 @@ export const GET = async (request: Request, context: RouteContext) => {
   })
 
   return new Response(xml, {
-    headers: {
-      'Content-Type': 'application/rss+xml; charset=UTF-8',
-    },
+    headers: feedResponseHeaders,
   })
 }
+
+export const OPTIONS = () => new Response(null, { status: 204, headers: feedResponseHeaders })

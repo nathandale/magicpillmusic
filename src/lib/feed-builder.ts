@@ -252,7 +252,6 @@ export const buildReleaseFeedXml = ({
       : '') +
     (release.upc ? `    <podcast:txt purpose="upc">${xmlText(release.upc)}</podcast:txt>\n` : '') +
     (coverImageUrl ? `    <itunes:image href="${xmlAttr(coverImageUrl)}" />\n` : '') +
-    (coverImageUrl ? `    <podcast:image href="${xmlAttr(coverImageUrl)}" />\n` : '') +
     (coverImageUrl
       ? '    <image>\n' +
         `      <url>${xmlText(coverImageUrl)}</url>\n` +
@@ -266,6 +265,70 @@ export const buildReleaseFeedXml = ({
     fundingTags +
     channelValueTag +
     itemTags +
+    '  </channel>\n' +
+    '</rss>\n'
+  )
+}
+
+type PublisherFeedInput = {
+  releases: ReleaseWithFeedFields[]
+  settings: PublishingSetting
+  baseFeedUrl: string
+}
+
+/**
+ * Builds a Podcasting 2.0 `medium=publisher` feed: a single document that points at
+ * every published release feed via <podcast:remoteItem>. Any P2.0 client (MY RADIO,
+ * Fountain, Podverse) can fetch this one URL and discover the whole catalogue.
+ */
+export const buildPublisherFeedXml = ({ releases, settings, baseFeedUrl }: PublisherFeedInput): string => {
+  const normalizedBaseUrl = normalizeBaseUrl(baseFeedUrl)
+  const selfFeedUrl = buildPathUrl(normalizedBaseUrl, '/feeds/publisher')
+  const title = settings.podcastTitle?.trim() || settings.publisherName?.trim() || 'Publisher'
+  const description = settings.podcastDescription?.trim() || ''
+  const language = settings.language?.trim() || 'en'
+  const ownerName = settings.ownerName?.trim() || settings.publisherName?.trim() || ''
+  const siteUrl = resolveAbsoluteUrl(settings.publisherUrl, normalizedBaseUrl) || normalizedBaseUrl
+  const imageUrl = mediaUrl(settings.siteImage, normalizedBaseUrl)
+  const feedGuid = `${new URL(normalizedBaseUrl).hostname}-publisher`
+
+  const remoteItems = releases
+    .map((release) => {
+      const slug = release.slug?.trim()
+      if (!slug) {
+        return ''
+      }
+
+      const feedUrl = buildPathUrl(normalizedBaseUrl, `/feeds/${encodeURIComponent(slug)}`)
+      const guid = release.releaseGuid?.trim() || `mpm-${release.type}-${release.id}`
+      const medium = release.medium === 'video' ? 'video' : 'music'
+
+      return (
+        `    <podcast:remoteItem medium="${xmlAttr(medium)}"` +
+        ` feedGuid="${xmlAttr(guid)}"` +
+        ` feedUrl="${xmlAttr(feedUrl)}" />\n`
+      )
+    })
+    .join('')
+
+  return (
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<rss version="2.0"\n' +
+    '     xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"\n' +
+    '     xmlns:podcast="https://podcastindex.org/namespace/1.0"\n' +
+    '     xmlns:atom="http://www.w3.org/2005/Atom">\n' +
+    '  <channel>\n' +
+    `    <title>${toCdata(title)}</title>\n` +
+    `    <link>${xmlText(siteUrl)}</link>\n` +
+    `    <description>${toCdata(description)}</description>\n` +
+    `    <language>${xmlText(language)}</language>\n` +
+    `    <lastBuildDate>${toRfc2822(new Date().toISOString())}</lastBuildDate>\n` +
+    `    <atom:link href="${xmlAttr(selfFeedUrl)}" rel="self" type="application/rss+xml" />\n` +
+    optionalTag('itunes:author', ownerName) +
+    (imageUrl ? `    <itunes:image href="${xmlAttr(imageUrl)}" />\n` : '') +
+    `    <podcast:guid>${xmlText(feedGuid)}</podcast:guid>\n` +
+    '    <podcast:medium>publisher</podcast:medium>\n' +
+    remoteItems +
     '  </channel>\n' +
     '</rss>\n'
   )

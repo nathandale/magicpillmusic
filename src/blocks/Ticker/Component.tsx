@@ -17,7 +17,7 @@ export const TickerBlock: React.FC<TickerBlockProps> = ({ items, speed }) => {
           <span key={i} className="font-bangers text-xl tracking-[0.15em] uppercase text-white">
             {(items || []).map((item, j) => (
               <React.Fragment key={j}>
-                {j > 0 && <span className="text-yellow mx-2">//</span>}
+                {j > 0 && <span className="text-yellow mx-2">{'//'}</span>}
                 {item.text}
               </React.Fragment>
             ))}

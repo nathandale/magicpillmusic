@@ -20,12 +20,13 @@
     "test": "pnpm run test:int && pnpm run test:e2e",
     "test:e2e": "cross-env NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" playwright test --config=playwright.config.ts",
     "seed": "cross-env NODE_OPTIONS='--no-deprecation --import=tsx/esm' tsx src/seed.ts",
-    "test:int": "cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts"
+    "test:int": "cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts",
+    "migrate:myradio": "cross-env NODE_OPTIONS='--no-deprecation --import=tsx/esm' tsx src/migrate-myradio.ts"
   },
   "dependencies": {
     "@payloadcms/admin-bar": "3.79.0",
     "@payloadcms/db-postgres": "3.79.0",
-    "@payloadcms/email-nodemailer": "^3.79.0",
+    "@payloadcms/email-nodemailer": "3.79.0",
     "@payloadcms/live-preview-react": "3.79.0",
     "@payloadcms/next": "3.79.0",
     "@payloadcms/plugin-form-builder": "3.79.0",

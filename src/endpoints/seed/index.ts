@@ -49,6 +49,8 @@ export const seed = async ({
       payload.updateGlobal({
         slug: global,
         data: {
+          // @ts-expect-error `globals` is a union of slugs, so TS narrows `data` to the
+          // properties common to all globals. Header and Footer both have navItems at runtime.
           navItems: [],
         },
         depth: 0,
