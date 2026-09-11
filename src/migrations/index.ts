@@ -3,6 +3,7 @@ import * as migration_20260309_025522_add_roles_and_audio_media from './20260309
 import * as migration_20260911_052236_add_myradio_presentation from './20260911_052236_add_myradio_presentation';
 import * as migration_20260911_054053_add_track_funding_and_provider from './20260911_054053_add_track_funding_and_provider';
 import * as migration_20260911_062718_add_channel_order from './20260911_062718_add_channel_order';
+import * as migration_20260911_090401_add_track_hide_funding from './20260911_090401_add_track_hide_funding';
 
 export const migrations = [
   {
@@ -28,6 +29,11 @@ export const migrations = [
   {
     up: migration_20260911_062718_add_channel_order.up,
     down: migration_20260911_062718_add_channel_order.down,
-    name: '20260911_062718_add_channel_order'
+    name: '20260911_062718_add_channel_order',
+  },
+  {
+    up: migration_20260911_090401_add_track_hide_funding.up,
+    down: migration_20260911_090401_add_track_hide_funding.down,
+    name: '20260911_090401_add_track_hide_funding'
   },
 ];

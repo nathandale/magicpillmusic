@@ -119,8 +119,16 @@ export const Tracks: CollectionConfig = {
         description: 'WebVTT file URL for lyrics/captions',
       },
     },
+    {
+      name: 'hideFunding',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description: 'Turn OFF all payment links for this song, even if the release has them. Use this to monetize only some songs on a release.',
+      },
+    },
     fundingLinksField({
-      admin: { description: 'Per-song payment links. When set, these override the release links for this track.' },
+      admin: { description: 'Per-song payment links. When set, these override the release links for this track. (Ignored if “Hide funding” is on.)' },
     }),
     {
       name: 'artwork',

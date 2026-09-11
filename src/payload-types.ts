@@ -1107,7 +1107,11 @@ export interface Track {
    */
   transcriptUrl?: string | null;
   /**
-   * Per-song payment links. When set, these override the release links for this track.
+   * Turn OFF all payment links for this song, even if the release has them. Use this to monetize only some songs on a release.
+   */
+  hideFunding?: boolean | null;
+  /**
+   * Per-song payment links. When set, these override the release links for this track. (Ignored if “Hide funding” is on.)
    */
   fundingLinks?:
     | {
@@ -1969,6 +1973,7 @@ export interface TracksSelect<T extends boolean = true> {
   videoMimeType?: T;
   videoFileSize?: T;
   transcriptUrl?: T;
+  hideFunding?: T;
   fundingLinks?:
     | T
     | {

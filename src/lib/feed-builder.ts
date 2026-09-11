@@ -247,7 +247,11 @@ export const buildReleaseFeedXml = ({
           ? `      <podcast:transcript type="text/vtt" url="${xmlAttr(transcriptUrl)}" rel="lyrics" />\n`
           : '') +
         (track.isrc ? `      <podcast:txt purpose="isrc">${xmlText(track.isrc)}</podcast:txt>\n` : '') +
-        fundingTagsFor((track as TrackWithFeedFields & { fundingLinks?: FundingEntry[] }).fundingLinks, normalizedBaseUrl, '      ') +
+        // Per-song funding: 'off' suppresses even the release links; otherwise the
+        // track's own links override, and no track tags means it inherits the release.
+        ((track as TrackWithFeedFields & { hideFunding?: boolean }).hideFunding
+          ? '      <podcast:txt purpose="myradio:funding">off</podcast:txt>\n'
+          : fundingTagsFor((track as TrackWithFeedFields & { fundingLinks?: FundingEntry[] }).fundingLinks, normalizedBaseUrl, '      ')) +
         '    </item>\n'
       )
     })
