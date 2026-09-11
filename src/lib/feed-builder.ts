@@ -238,6 +238,9 @@ export const buildReleaseFeedXml = ({
         `      <itunes:explicit>${track.explicit ? 'true' : 'false'}</itunes:explicit>\n` +
         `      <itunes:author>${toCdata(artistName)}</itunes:author>\n` +
         `      <itunes:summary>${toCdata(trackDescription)}</itunes:summary>\n` +
+        (typeof track.duration === 'number' && track.duration > 0
+          ? `      <itunes:duration>${xmlText(String(Math.round(track.duration)))}</itunes:duration>\n`
+          : '') +
         `      <podcast:episode>${xmlText(String(track.trackNumber))}</podcast:episode>\n` +
         (itemArtwork ? `      <itunes:image href="${xmlAttr(itemArtwork)}" />\n` : '') +
         (transcriptUrl
