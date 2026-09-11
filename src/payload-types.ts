@@ -996,14 +996,21 @@ export interface Release {
    */
   socialUrl?: string | null;
   /**
-   * Support / funding links (podcast:funding)
+   * Payment / support links for the whole release. Tracks can override these individually.
    */
   fundingLinks?:
     | {
         /**
-         * e.g. Ko-fi, Buy Me a Coffee
+         * Sets the button label and icon
          */
-        label: string;
+        provider: 'cashapp' | 'venmo' | 'paypal' | 'buymeacoffee' | 'kofi' | 'lightning' | 'other';
+        /**
+         * Optional custom button text (defaults to the provider name)
+         */
+        label?: string | null;
+        /**
+         * Full link. e.g. Cash App https://cash.app/$handle · Venmo https://venmo.com/u/handle · PayPal https://paypal.me/handle · Lightning: an address like you@getalby.com
+         */
         url: string;
         id?: string | null;
       }[]
@@ -1095,6 +1102,26 @@ export interface Track {
    * WebVTT file URL for lyrics/captions
    */
   transcriptUrl?: string | null;
+  /**
+   * Per-song payment links. When set, these override the release links for this track.
+   */
+  fundingLinks?:
+    | {
+        /**
+         * Sets the button label and icon
+         */
+        provider: 'cashapp' | 'venmo' | 'paypal' | 'buymeacoffee' | 'kofi' | 'lightning' | 'other';
+        /**
+         * Optional custom button text (defaults to the provider name)
+         */
+        label?: string | null;
+        /**
+         * Full link. e.g. Cash App https://cash.app/$handle · Venmo https://venmo.com/u/handle · PayPal https://paypal.me/handle · Lightning: an address like you@getalby.com
+         */
+        url: string;
+        id?: string | null;
+      }[]
+    | null;
   /**
    * Per-track artwork override (falls back to release cover)
    */
@@ -1898,6 +1925,7 @@ export interface ReleasesSelect<T extends boolean = true> {
   fundingLinks?:
     | T
     | {
+        provider?: T;
         label?: T;
         url?: T;
         id?: T;
@@ -1936,6 +1964,14 @@ export interface TracksSelect<T extends boolean = true> {
   videoMimeType?: T;
   videoFileSize?: T;
   transcriptUrl?: T;
+  fundingLinks?:
+    | T
+    | {
+        provider?: T;
+        label?: T;
+        url?: T;
+        id?: T;
+      };
   artwork?: T;
   description?: T;
   explicit?: T;

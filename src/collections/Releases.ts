@@ -5,6 +5,7 @@ import { anyone } from '../access/anyone'
 import { authenticated } from '../access/authenticated'
 import { isAdmin } from '../access/roles'
 import type { User } from '@/payload-types'
+import { fundingLinksField } from '../fields/fundingLinks'
 
 export const GENRE_OPTIONS = [
   { label: 'Alternative', value: 'Alternative' },
@@ -181,28 +182,9 @@ export const Releases: CollectionConfig = {
         description: 'Nostr or social discussion URL',
       },
     },
-    {
-      name: 'fundingLinks',
-      type: 'array',
-      admin: {
-        description: 'Support / funding links (podcast:funding)',
-      },
-      fields: [
-        {
-          name: 'label',
-          type: 'text',
-          required: true,
-          admin: {
-            description: 'e.g. Ko-fi, Buy Me a Coffee',
-          },
-        },
-        {
-          name: 'url',
-          type: 'text',
-          required: true,
-        },
-      ],
-    },
+    fundingLinksField({
+      admin: { description: 'Payment / support links for the whole release. Tracks can override these individually.' },
+    }),
     {
       name: 'suggestedSats',
       type: 'number',

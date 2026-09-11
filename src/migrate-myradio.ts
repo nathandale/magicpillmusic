@@ -110,9 +110,12 @@ async function migrate(): Promise<void> {
       }
     }
 
+    const PROVIDERS = ['cashapp', 'venmo', 'paypal', 'buymeacoffee', 'kofi', 'lightning'] as const
+    type Provider = (typeof PROVIDERS)[number] | 'other'
+    const toProvider = (key: string): Provider => (PROVIDERS as readonly string[]).includes(key) ? (key as Provider) : 'other'
     const fundingLinks = Object.entries(catalog.donations ?? {})
       .filter(([, url]) => url)
-      .map(([provider, url]) => ({ label: FUNDING_LABELS[provider] ?? provider, url }))
+      .map(([key, url]) => ({ provider: toProvider(key), label: FUNDING_LABELS[key] ?? undefined, url }))
 
     const release = await payload.create({
       collection: 'releases',

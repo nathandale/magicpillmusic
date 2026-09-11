@@ -128,6 +128,30 @@ const myRadioTxtTags = (release: ReleaseWithFeedFields): string => {
   )
 }
 
+const PROVIDER_LABELS: Record<string, string> = {
+  cashapp: 'Cash App',
+  venmo: 'Venmo',
+  paypal: 'PayPal',
+  buymeacoffee: 'Buy Me a Coffee',
+  kofi: 'Ko-fi',
+  lightning: 'Lightning',
+  other: 'Support',
+}
+
+type FundingEntry = { provider?: string | null; label?: string | null; url?: string | null }
+
+const fundingTagsFor = (links: FundingEntry[] | null | undefined, baseUrl: string, indent: string): string =>
+  (links ?? [])
+    .filter((entry) => entry.url)
+    .map((entry) => {
+      const url = resolveAbsoluteUrl(entry.url, baseUrl)
+      if (!url) return ''
+      const label = entry.label?.trim() || PROVIDER_LABELS[entry.provider ?? 'other'] || 'Support'
+      const provider = entry.provider ? ` fundingprovider="${xmlAttr(entry.provider)}"` : ''
+      return `${indent}<podcast:funding url="${xmlAttr(url)}"${provider}>${xmlText(label)}</podcast:funding>\n`
+    })
+    .join('')
+
 export const buildReleaseFeedXml = ({
   release,
   tracks,
@@ -153,18 +177,7 @@ export const buildReleaseFeedXml = ({
   const genre = release.genre ?? settings.defaultCategory ?? ''
   const subgenres = (release.subgenres ?? []).map((entry) => entry.name).filter(Boolean).slice(0, 2)
 
-  const fundingTags = (release.fundingLinks ?? [])
-    .filter((entry) => entry.url)
-    .map((entry) => {
-      const url = resolveAbsoluteUrl(entry.url, normalizedBaseUrl)
-      if (!url) {
-        return ''
-      }
-
-      const label = entry.label || 'Support'
-      return `    <podcast:funding url="${xmlAttr(url)}">${xmlText(label)}</podcast:funding>\n`
-    })
-    .join('')
+    const fundingTags = fundingTagsFor(release.fundingLinks, normalizedBaseUrl, '    ')
 
   const splitTags = valueSplits
     .filter((split) => split.lightningAddress)
@@ -231,6 +244,7 @@ export const buildReleaseFeedXml = ({
           ? `      <podcast:transcript type="text/vtt" url="${xmlAttr(transcriptUrl)}" rel="lyrics" />\n`
           : '') +
         (track.isrc ? `      <podcast:txt purpose="isrc">${xmlText(track.isrc)}</podcast:txt>\n` : '') +
+        fundingTagsFor((track as TrackWithFeedFields & { fundingLinks?: FundingEntry[] }).fundingLinks, normalizedBaseUrl, '      ') +
         '    </item>\n'
       )
     })

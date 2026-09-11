@@ -6,6 +6,7 @@ import { authenticated } from '../access/authenticated'
 import { isAdmin, publisherFieldAccess } from '../access/roles'
 import { GENRE_OPTIONS } from './Releases'
 import type { User } from '@/payload-types'
+import { fundingLinksField } from '../fields/fundingLinks'
 
 export const Tracks: CollectionConfig = {
   slug: 'tracks',
@@ -118,6 +119,9 @@ export const Tracks: CollectionConfig = {
         description: 'WebVTT file URL for lyrics/captions',
       },
     },
+    fundingLinksField({
+      admin: { description: 'Per-song payment links. When set, these override the release links for this track.' },
+    }),
     {
       name: 'artwork',
       type: 'upload',

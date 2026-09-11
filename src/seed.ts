@@ -115,7 +115,7 @@ async function seed(): Promise<void> {
       upc: '123456789012',
       location: 'Nashville, TN',
       socialUrl: 'https://nostr.com/nathan',
-      fundingLinks: [{ label: 'Support on Ko-fi', url: 'https://ko-fi.com/nathandale' }],
+      fundingLinks: [{ provider: 'kofi' as const, label: 'Support on Ko-fi', url: 'https://ko-fi.com/nathandale' }],
       suggestedSats: 5000,
       status: 'published',
       releaseDate,
