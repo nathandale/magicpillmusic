@@ -1036,6 +1036,10 @@ export interface Release {
      */
     heartUrl?: string | null;
     /**
+     * Channel order in the MY RADIO list — lower shows first. Ties fall back to release date.
+     */
+    order?: number | null;
+    /**
      * Short URL alias, e.g. "mkp" → myradio.nathandale.com/playlist/mkp
      */
     token?: string | null;
@@ -1937,6 +1941,7 @@ export interface ReleasesSelect<T extends boolean = true> {
         kicker?: T;
         theme?: T;
         heartUrl?: T;
+        order?: T;
         token?: T;
         isDefault?: T;
         terrestrialHandoff?: T;

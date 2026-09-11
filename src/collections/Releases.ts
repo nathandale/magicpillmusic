@@ -231,6 +231,15 @@ export const Releases: CollectionConfig = {
           admin: { description: 'Link back to the matching section on nathandale.com/heart' },
         },
         {
+          name: 'order',
+          type: 'number',
+          defaultValue: 100,
+          admin: {
+            description: 'Channel order in the MY RADIO list — lower shows first. Ties fall back to release date.',
+            step: 1,
+          },
+        },
+        {
           name: 'token',
           type: 'text',
           admin: { description: 'Short URL alias, e.g. "mkp" → myradio.nathandale.com/playlist/mkp' },

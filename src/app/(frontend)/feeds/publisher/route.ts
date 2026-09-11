@@ -27,7 +27,7 @@ export const GET = async () => {
           equals: 'published',
         },
       },
-      sort: '-releaseDate',
+      sort: ['myradio.order', '-releaseDate'],
       depth: 0,
       limit: 500,
     }),
