@@ -67,12 +67,19 @@ async function migrate(): Promise<void> {
   const manifest = await fetchJson<Manifest>(`${MYRADIO}/my-radio/playlists.json`)
   console.log(`Found ${manifest.playlists.length} playlists on ${MYRADIO}`)
 
+  // Every migrated artist is owned by the first admin user, so the Artists access
+  // rule (`user === req.user.id` for non-admins) never leaves them un-editable.
+  const owner = await payload.find({ collection: 'users', sort: 'id', limit: 1 })
+  const ownerId = owner.docs[0]?.id
+  if (!ownerId) throw new Error('No users exist — create the admin account before migrating.')
+  console.log(`Owner for migrated artists: user #${ownerId}`)
+
   const artistIds = new Map<string, number>()
   const ensureArtist = async (def: { name: string; slug: string }): Promise<number> => {
     if (artistIds.has(def.slug)) return artistIds.get(def.slug)!
     const existing = await payload.find({ collection: 'artists', where: { slug: { equals: def.slug } }, limit: 1 })
     const id = existing.docs[0]?.id
-      ?? (await payload.create({ collection: 'artists', data: { name: def.name, slug: def.slug, status: 'active' } })).id
+      ?? (await payload.create({ collection: 'artists', data: { name: def.name, slug: def.slug, status: 'active', user: ownerId } })).id
     artistIds.set(def.slug, id)
     console.log(`  artist ${existing.docs[0] ? 'exists' : 'created'}: ${def.name} (#${id})`)
     return id
