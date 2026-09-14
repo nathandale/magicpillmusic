@@ -16,6 +16,15 @@ type Channel = {
 
 const STEP = 10
 
+const THEME_OPTIONS = [
+  { label: 'Catalog', value: 'catalog' },
+  { label: 'Terrestrial', value: 'terrestrial' },
+  { label: 'Nathan Archive', value: 'nathan-archive' },
+  { label: 'Wooden Revolt', value: 'wooden-revolt' },
+  { label: 'Parade', value: 'parade' },
+  { label: 'Monochrome', value: 'monochrome' },
+]
+
 // Read a release doc into the flat shape the panel renders.
 function toChannel(doc: Record<string, unknown>): Channel {
   const myradio = (doc.myradio ?? {}) as Record<string, unknown>
@@ -101,6 +110,72 @@ export const MyRadioReorder: React.FC = () => {
       }
     },
     [apiRoute, load],
+  )
+
+  // PATCH one channel's myradio fields, with optimistic local update + reload on failure.
+  const patchChannel = useCallback(
+    async (id: Channel['id'], data: Record<string, unknown>, label: string) => {
+      setSaving(true)
+      try {
+        const res = await fetch(`${apiRoute}/releases/${id}`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ myradio: data }),
+        })
+        if (!res.ok) throw new Error(`${res.status}`)
+        toast.success(label)
+      } catch (err) {
+        toast.error(`Could not save: ${err instanceof Error ? err.message : 'unknown error'}`)
+        void load()
+      } finally {
+        setSaving(false)
+      }
+    },
+    [apiRoute, load],
+  )
+
+  const setTheme = useCallback(
+    (id: Channel['id'], theme: string) => {
+      setChannels((current) => current.map((c) => (c.id === id ? { ...c, theme } : c)))
+      void patchChannel(id, { theme }, 'Theme saved')
+    },
+    [patchChannel],
+  )
+
+  // Exactly one default: set this channel true and clear any other that was default.
+  const setDefault = useCallback(
+    (id: Channel['id']) => {
+      const previous = channels.filter((c) => c.isDefault && c.id !== id)
+      setChannels((current) => current.map((c) => ({ ...c, isDefault: c.id === id })))
+      setSaving(true)
+      Promise.all([
+        fetch(`${apiRoute}/releases/${id}`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ myradio: { isDefault: true } }),
+        }),
+        ...previous.map((c) =>
+          fetch(`${apiRoute}/releases/${c.id}`, {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ myradio: { isDefault: false } }),
+          }),
+        ),
+      ])
+        .then((results) => {
+          if (results.some((r) => !r.ok)) throw new Error('one or more updates failed')
+          toast.success('Default channel saved')
+        })
+        .catch((err) => {
+          toast.error(`Could not save: ${err instanceof Error ? err.message : 'unknown error'}`)
+          void load()
+        })
+        .finally(() => setSaving(false))
+    },
+    [apiRoute, channels, load],
   )
 
   const handleDrop = useCallback(
@@ -219,7 +294,19 @@ export const MyRadioReorder: React.FC = () => {
                 <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {channel.title}
                 </strong>
-                {channel.isDefault ? <span style={pill}>DEFAULT</span> : null}
+                {channel.isDefault ? (
+                  <span style={pill}>DEFAULT</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setDefault(channel.id)}
+                    disabled={saving}
+                    style={setDefaultButton}
+                    title="Make this the channel that loads first"
+                  >
+                    set default
+                  </button>
+                )}
               </span>
               {channel.kicker ? (
                 <span
@@ -236,6 +323,19 @@ export const MyRadioReorder: React.FC = () => {
                 </span>
               ) : null}
             </span>
+            <select
+              aria-label={`Theme for ${channel.title}`}
+              value={channel.theme}
+              disabled={saving}
+              onChange={(e) => setTheme(channel.id, e.target.value)}
+              style={themeSelect}
+            >
+              {THEME_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
             <span style={{ display: 'flex', gap: 4 }}>
               <button
                 type="button"
@@ -274,6 +374,31 @@ const arrowButton: React.CSSProperties = {
   background: 'var(--theme-elevation-0)',
   color: 'var(--theme-elevation-800)',
   cursor: 'pointer',
+}
+
+const themeSelect: React.CSSProperties = {
+  height: 28,
+  borderRadius: 4,
+  border: '1px solid var(--theme-elevation-150)',
+  background: 'var(--theme-elevation-0)',
+  color: 'var(--theme-elevation-800)',
+  fontSize: 12,
+  padding: '0 4px',
+  cursor: 'pointer',
+  flexShrink: 0,
+}
+
+const setDefaultButton: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 600,
+  letterSpacing: '0.06em',
+  padding: '2px 6px',
+  borderRadius: 999,
+  border: '1px solid var(--theme-elevation-150)',
+  background: 'transparent',
+  color: 'var(--theme-elevation-450)',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
 }
 
 const pill: React.CSSProperties = {
