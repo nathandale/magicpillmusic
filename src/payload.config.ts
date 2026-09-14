@@ -34,6 +34,14 @@ export default buildConfig({
       // The `BeforeDashboard` component renders the 'welcome' block that you see after logging into your admin panel.
       // Feel free to delete this at any time. Simply remove the line below.
       beforeDashboard: ['@/components/BeforeDashboard'],
+      // Custom "MY RADIO" admin view: drag-to-reorder the channel list.
+      afterNavLinks: ['@/components/MyRadioNavLink#MyRadioNavLink'],
+      views: {
+        myRadio: {
+          Component: '@/components/MyRadioView#MyRadioView',
+          path: '/my-radio',
+        },
+      },
     },
     importMap: {
       baseDir: path.resolve(dirname),
