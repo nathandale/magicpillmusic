@@ -120,6 +120,16 @@ export const Tracks: CollectionConfig = {
       },
     },
     {
+      name: 'year',
+      type: 'number',
+      min: 1900,
+      max: 2100,
+      admin: {
+        description: 'Year this song was released. Shown as a small © line in the MY RADIO info panel.',
+        step: 1,
+      },
+    },
+    {
       name: 'songwriters',
       type: 'text',
       maxLength: 300,

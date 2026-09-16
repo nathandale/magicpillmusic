@@ -156,12 +156,13 @@ const fundingTagsFor = (links: FundingEntry[] | null | undefined, baseUrl: strin
  * Per-song liner notes for MY RADIO's back-of-artwork view, carried as
  * <podcast:txt purpose="myradio:…">. Other P2.0 clients ignore unknown purposes.
  */
-const trackNotesTags = (track: { songwriters?: string | null; personnel?: string | null; story?: string | null }): string => {
+const trackNotesTags = (track: { year?: number | null; songwriters?: string | null; personnel?: string | null; story?: string | null }): string => {
   const tag = (purpose: string, value: string | null | undefined): string =>
     value && String(value).trim()
       ? `      <podcast:txt purpose="myradio:${purpose}">${xmlText(String(value))}</podcast:txt>\n`
       : ''
-  return tag('songwriters', track.songwriters) + tag('personnel', track.personnel) + tag('story', track.story)
+  const year = track.year ? tag('year', String(track.year)) : ''
+  return year + tag('songwriters', track.songwriters) + tag('personnel', track.personnel) + tag('story', track.story)
 }
 
 export const buildReleaseFeedXml = ({
@@ -264,7 +265,7 @@ export const buildReleaseFeedXml = ({
         ((track as TrackWithFeedFields & { hideFunding?: boolean }).hideFunding
           ? '      <podcast:txt purpose="myradio:funding">off</podcast:txt>\n'
           : fundingTagsFor((track as TrackWithFeedFields & { fundingLinks?: FundingEntry[] }).fundingLinks, normalizedBaseUrl, '      ')) +
-        trackNotesTags(track as TrackWithFeedFields & { songwriters?: string; personnel?: string; story?: string }) +
+        trackNotesTags(track as TrackWithFeedFields & { year?: number; songwriters?: string; personnel?: string; story?: string }) +
         '    </item>\n'
       )
     })

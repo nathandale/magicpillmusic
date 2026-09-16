@@ -1107,6 +1107,10 @@ export interface Track {
    */
   transcriptUrl?: string | null;
   /**
+   * Year this song was released. Shown as a small © line in the MY RADIO info panel.
+   */
+  year?: number | null;
+  /**
    * Songwriter(s), comma-separated. Shown on the back of the artwork in MY RADIO.
    */
   songwriters?: string | null;
@@ -1985,6 +1989,7 @@ export interface TracksSelect<T extends boolean = true> {
   videoMimeType?: T;
   videoFileSize?: T;
   transcriptUrl?: T;
+  year?: T;
   songwriters?: T;
   personnel?: T;
   story?: T;
