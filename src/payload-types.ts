@@ -1107,6 +1107,31 @@ export interface Track {
    */
   transcriptUrl?: string | null;
   /**
+   * Who made this song. Shown on the back of the artwork in MY RADIO.
+   */
+  credits?:
+    | {
+        role: 'writer' | 'composer' | 'performer' | 'producer' | 'featured' | 'engineer' | 'other';
+        /**
+         * Person or group
+         */
+        name: string;
+        /**
+         * Custom label, only used when role is "Other" (e.g. "Mixed by")
+         */
+        roleLabel?: string | null;
+        /**
+         * Optional link for this credit
+         */
+        url?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * The story behind this song — free text, shown on the back of the artwork.
+   */
+  story?: string | null;
+  /**
    * Turn OFF all payment links for this song, even if the release has them. Use this to monetize only some songs on a release.
    */
   hideFunding?: boolean | null;
@@ -1973,6 +1998,16 @@ export interface TracksSelect<T extends boolean = true> {
   videoMimeType?: T;
   videoFileSize?: T;
   transcriptUrl?: T;
+  credits?:
+    | T
+    | {
+        role?: T;
+        name?: T;
+        roleLabel?: T;
+        url?: T;
+        id?: T;
+      };
+  story?: T;
   hideFunding?: T;
   fundingLinks?:
     | T

@@ -152,6 +152,34 @@ const fundingTagsFor = (links: FundingEntry[] | null | undefined, baseUrl: strin
     })
     .join('')
 
+type CreditEntry = { role?: string | null; roleLabel?: string | null; name?: string | null; url?: string | null }
+
+const CREDIT_ROLE_LABELS: Record<string, string> = {
+  writer: 'Written by',
+  composer: 'Composed by',
+  performer: 'Performed by',
+  producer: 'Produced by',
+  featured: 'Featuring',
+  engineer: 'Engineered by',
+  other: 'Credit',
+}
+
+/**
+ * Per-song credits, carried as item-level <podcast:person>. The role attribute holds
+ * the label ("Written by" etc.) so any P2.0 client and MY RADIO both read it.
+ */
+const creditTagsFor = (credits: CreditEntry[] | null | undefined): string =>
+  (credits ?? [])
+    .filter((entry) => entry.name)
+    .map((entry) => {
+      const role = entry.role === 'other' && entry.roleLabel
+        ? entry.roleLabel
+        : CREDIT_ROLE_LABELS[entry.role ?? 'other'] || 'Credit'
+      const href = entry.url ? ` href="${xmlAttr(entry.url)}"` : ''
+      return `      <podcast:person role="${xmlAttr(role)}"${href}>${xmlText(String(entry.name))}</podcast:person>\n`
+    })
+    .join('')
+
 export const buildReleaseFeedXml = ({
   release,
   tracks,
@@ -252,6 +280,10 @@ export const buildReleaseFeedXml = ({
         ((track as TrackWithFeedFields & { hideFunding?: boolean }).hideFunding
           ? '      <podcast:txt purpose="myradio:funding">off</podcast:txt>\n'
           : fundingTagsFor((track as TrackWithFeedFields & { fundingLinks?: FundingEntry[] }).fundingLinks, normalizedBaseUrl, '      ')) +
+        creditTagsFor((track as TrackWithFeedFields & { credits?: CreditEntry[] }).credits) +
+        ((track as TrackWithFeedFields & { story?: string }).story
+          ? `      <podcast:txt purpose="myradio:story">${xmlText(String((track as TrackWithFeedFields & { story?: string }).story))}</podcast:txt>\n`
+          : '') +
         '    </item>\n'
       )
     })
