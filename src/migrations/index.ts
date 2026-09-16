@@ -5,6 +5,7 @@ import * as migration_20260911_054053_add_track_funding_and_provider from './202
 import * as migration_20260911_062718_add_channel_order from './20260911_062718_add_channel_order';
 import * as migration_20260911_090401_add_track_hide_funding from './20260911_090401_add_track_hide_funding';
 import * as migration_20260916_203716_add_track_credits_story from './20260916_203716_add_track_credits_story';
+import * as migration_20260916_205150_replace_credits_with_notes from './20260916_205150_replace_credits_with_notes';
 
 export const migrations = [
   {
@@ -40,6 +41,11 @@ export const migrations = [
   {
     up: migration_20260916_203716_add_track_credits_story.up,
     down: migration_20260916_203716_add_track_credits_story.down,
-    name: '20260916_203716_add_track_credits_story'
+    name: '20260916_203716_add_track_credits_story',
+  },
+  {
+    up: migration_20260916_205150_replace_credits_with_notes.up,
+    down: migration_20260916_205150_replace_credits_with_notes.down,
+    name: '20260916_205150_replace_credits_with_notes'
   },
 ];

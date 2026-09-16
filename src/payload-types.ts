@@ -1107,28 +1107,15 @@ export interface Track {
    */
   transcriptUrl?: string | null;
   /**
-   * Who made this song. Shown on the back of the artwork in MY RADIO.
+   * Songwriter(s), comma-separated. Shown on the back of the artwork in MY RADIO.
    */
-  credits?:
-    | {
-        role: 'writer' | 'composer' | 'performer' | 'producer' | 'featured' | 'engineer' | 'other';
-        /**
-         * Person or group
-         */
-        name: string;
-        /**
-         * Custom label, only used when role is "Other" (e.g. "Mixed by")
-         */
-        roleLabel?: string | null;
-        /**
-         * Optional link for this credit
-         */
-        url?: string | null;
-        id?: string | null;
-      }[]
-    | null;
+  songwriters?: string | null;
   /**
-   * The story behind this song — free text, shown on the back of the artwork.
+   * Musicians and what they played — one per line. Shown on the back of the artwork.
+   */
+  personnel?: string | null;
+  /**
+   * Free text about this song. Shown on the back of the artwork; scrolls if long.
    */
   story?: string | null;
   /**
@@ -1998,15 +1985,8 @@ export interface TracksSelect<T extends boolean = true> {
   videoMimeType?: T;
   videoFileSize?: T;
   transcriptUrl?: T;
-  credits?:
-    | T
-    | {
-        role?: T;
-        name?: T;
-        roleLabel?: T;
-        url?: T;
-        id?: T;
-      };
+  songwriters?: T;
+  personnel?: T;
   story?: T;
   hideFunding?: T;
   fundingLinks?:

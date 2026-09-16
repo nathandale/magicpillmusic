@@ -120,59 +120,26 @@ export const Tracks: CollectionConfig = {
       },
     },
     {
-      name: 'credits',
-      type: 'array',
+      name: 'songwriters',
+      type: 'text',
+      maxLength: 300,
       admin: {
-        description: 'Who made this song. Shown on the back of the artwork in MY RADIO.',
+        description: 'Songwriter(s), comma-separated. Shown on the back of the artwork in MY RADIO.',
       },
-      fields: [
-        {
-          type: 'row',
-          fields: [
-            {
-              name: 'role',
-              type: 'select',
-              required: true,
-              defaultValue: 'performer',
-              options: [
-                { label: 'Written by', value: 'writer' },
-                { label: 'Composed by', value: 'composer' },
-                { label: 'Performed by', value: 'performer' },
-                { label: 'Produced by', value: 'producer' },
-                { label: 'Featuring', value: 'featured' },
-                { label: 'Engineered by', value: 'engineer' },
-                { label: 'Other', value: 'other' },
-              ],
-              admin: { width: '40%' },
-            },
-            {
-              name: 'name',
-              type: 'text',
-              required: true,
-              admin: { width: '60%', description: 'Person or group' },
-            },
-          ],
-        },
-        {
-          name: 'roleLabel',
-          type: 'text',
-          admin: {
-            description: 'Custom label, only used when role is "Other" (e.g. "Mixed by")',
-            condition: (_data, siblingData) => siblingData?.role === 'other',
-          },
-        },
-        {
-          name: 'url',
-          type: 'text',
-          admin: { description: 'Optional link for this credit' },
-        },
-      ],
+    },
+    {
+      name: 'personnel',
+      type: 'textarea',
+      maxLength: 1500,
+      admin: {
+        description: 'Musicians and what they played — one per line. Shown on the back of the artwork.',
+      },
     },
     {
       name: 'story',
       type: 'textarea',
       admin: {
-        description: 'The story behind this song — free text, shown on the back of the artwork.',
+        description: 'Free text about this song. Shown on the back of the artwork; scrolls if long.',
       },
     },
     {
