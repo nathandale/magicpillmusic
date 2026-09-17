@@ -32,214 +32,214 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE TYPE "public"."enum__tracks_v_version_status" AS ENUM('draft', 'published');
   CREATE TYPE "public"."enum_avr_outcome" AS ENUM('pass', 'fail');
   CREATE TABLE "releases_av_sample_events" (
-  	"_order" integer NOT NULL,
-  	"_parent_id" integer NOT NULL,
-  	"id" varchar PRIMARY KEY NOT NULL,
-  	"event_id" varchar
+    "_order" integer NOT NULL,
+    "_parent_id" integer NOT NULL,
+    "id" varchar PRIMARY KEY NOT NULL,
+    "event_id" varchar
   );
-  
+
   CREATE TABLE "_releases_v_version_subgenres" (
-  	"_order" integer NOT NULL,
-  	"_parent_id" integer NOT NULL,
-  	"id" serial PRIMARY KEY NOT NULL,
-  	"name" varchar,
-  	"_uuid" varchar
+    "_order" integer NOT NULL,
+    "_parent_id" integer NOT NULL,
+    "id" serial PRIMARY KEY NOT NULL,
+    "name" varchar,
+    "_uuid" varchar
   );
-  
+
   CREATE TABLE "_releases_v_version_funding_links" (
-  	"_order" integer NOT NULL,
-  	"_parent_id" integer NOT NULL,
-  	"id" serial PRIMARY KEY NOT NULL,
-  	"provider" "enum__releases_v_version_funding_links_provider" DEFAULT 'other',
-  	"label" varchar,
-  	"url" varchar,
-  	"_uuid" varchar
+    "_order" integer NOT NULL,
+    "_parent_id" integer NOT NULL,
+    "id" serial PRIMARY KEY NOT NULL,
+    "provider" "enum__releases_v_version_funding_links_provider" DEFAULT 'other',
+    "label" varchar,
+    "url" varchar,
+    "_uuid" varchar
   );
-  
+
   CREATE TABLE "_releases_av_sample_events_v" (
-  	"_order" integer NOT NULL,
-  	"_parent_id" integer NOT NULL,
-  	"id" serial PRIMARY KEY NOT NULL,
-  	"event_id" varchar,
-  	"_uuid" varchar
+    "_order" integer NOT NULL,
+    "_parent_id" integer NOT NULL,
+    "id" serial PRIMARY KEY NOT NULL,
+    "event_id" varchar,
+    "_uuid" varchar
   );
-  
+
   CREATE TABLE "_releases_v" (
-  	"id" serial PRIMARY KEY NOT NULL,
-  	"parent_id" integer,
-  	"version_title" varchar,
-  	"version_slug" varchar,
-  	"version_type" "enum__releases_v_version_type",
-  	"version_medium" "enum__releases_v_version_medium" DEFAULT 'music',
-  	"version_artist_id" integer,
-  	"version_release_date" timestamp(3) with time zone,
-  	"version_cover_image_id" integer,
-  	"version_banner_image_id" integer,
-  	"version_description" varchar,
-  	"version_explicit" boolean DEFAULT false,
-  	"version_genre" "enum__releases_v_version_genre",
-  	"version_feed_locked" boolean DEFAULT false,
-  	"version_license" varchar,
-  	"version_upc" varchar,
-  	"version_location" varchar,
-  	"version_social_url" varchar,
-  	"version_suggested_sats" numeric DEFAULT 5000,
-  	"version_myradio_kicker" varchar,
-  	"version_myradio_theme" "enum__releases_v_version_myradio_theme" DEFAULT 'catalog',
-  	"version_myradio_theme_schema_version" numeric DEFAULT 1,
-  	"version_myradio_theme_revision" numeric DEFAULT 0,
-  	"version_myradio_theme_assets_background_image_id" integer,
-  	"version_myradio_theme_assets_texture_image_id" integer,
-  	"version_myradio_theme_assets_mark_image_id" integer,
-  	"version_myradio_theme_tokens_chrome" varchar,
-  	"version_myradio_theme_tokens_muted" varchar,
-  	"version_myradio_theme_tokens_accent" varchar,
-  	"version_myradio_theme_tokens_accent_contrast" varchar,
-  	"version_myradio_theme_tokens_beacon" varchar,
-  	"version_myradio_theme_tokens_beacon_glow" varchar,
-  	"version_myradio_theme_tokens_line" varchar,
-  	"version_myradio_theme_tokens_panel_start" varchar,
-  	"version_myradio_theme_tokens_panel_end" varchar,
-  	"version_myradio_theme_tokens_panel_text" varchar,
-  	"version_myradio_theme_tokens_panel_muted" varchar,
-  	"version_myradio_theme_tokens_panel_alt" varchar,
-  	"version_myradio_theme_tokens_panel_active" varchar,
-  	"version_myradio_theme_tokens_action_background" varchar,
-  	"version_myradio_theme_tokens_action_text" varchar,
-  	"version_myradio_theme_tokens_popover_background" varchar,
-  	"version_myradio_theme_tokens_popover_text" varchar,
-  	"version_myradio_theme_tokens_popover_muted" varchar,
-  	"version_myradio_theme_options_artwork_treatment" "mr_artwork_treatment" DEFAULT 'full',
-  	"version_myradio_theme_options_type_treatment" "mr_type_treatment" DEFAULT 'default',
-  	"version_myradio_theme_options_surface_treatment" "mr_surface_treatment" DEFAULT 'solid',
-  	"version_myradio_theme_options_motion" "mr_theme_motion" DEFAULT 'subtle',
-  	"version_myradio_signal_card_layout" "mr_signal_card_layout" DEFAULT 'standard',
-  	"version_myradio_signal_card_show_artwork" boolean DEFAULT true,
-  	"version_myradio_social_card_layout" "mr_social_card_layout" DEFAULT 'standard',
-  	"version_myradio_heart_url" varchar,
-  	"version_myradio_order" numeric DEFAULT 100,
-  	"version_myradio_token" varchar,
-  	"version_myradio_is_default" boolean DEFAULT false,
-  	"version_myradio_terrestrial_handoff" boolean DEFAULT false,
-  	"version_distribution_release_lane" "enum__releases_v_version_distribution_release_lane",
-  	"version_distribution_public_visibility" "enum__releases_v_version_distribution_public_visibility" DEFAULT 'preview',
-  	"version_distribution_shadow_post_url" varchar,
-  	"version_distribution_shadow_post_slug" varchar,
-  	"version_distribution_default_share_target" "enum__releases_v_version_distribution_default_share_target" DEFAULT 'story',
-  	"version_distribution_embed_enabled" boolean DEFAULT false,
-  	"version_distribution_campaign_key" varchar,
-  	"version_distribution_share_title" varchar,
-  	"version_distribution_share_description" varchar,
-  	"version_distribution_analytics_schema_version" numeric DEFAULT 1,
-  	"version_preview_attestation_attested_at" timestamp(3) with time zone,
-  	"version_preview_attestation_attested_by_id" integer,
-  	"version_preview_attestation_theme_revision_at" numeric,
-  	"version_preview_attestation_track_fingerprint_at" varchar,
-  	"version_preview_attestation_player_version_at" varchar,
-  	"version_preview_attestation_schema_version_at" numeric,
-  	"version_analytics_verification_latest_id" integer,
-  	"version_analytics_verification_summary_verified_at" timestamp(3) with time zone,
-  	"version_analytics_verification_summary_verified_by_id" integer,
-  	"version_analytics_verification_summary_environment" varchar,
-  	"version_analytics_verification_summary_schema_version" numeric,
-  	"version_analytics_verification_summary_player_version" varchar,
-  	"version_analytics_verification_summary_theme_version" numeric,
-  	"version_release_guid" varchar,
-  	"version_status" "enum__releases_v_version_status" DEFAULT 'draft',
-  	"version_workflow_state" "enum__releases_v_version_workflow_state" DEFAULT 'draft',
-  	"version_updated_at" timestamp(3) with time zone,
-  	"version_created_at" timestamp(3) with time zone,
-  	"version__status" "enum__releases_v_version_status" DEFAULT 'draft',
-  	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
-  	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
-  	"latest" boolean,
-  	"autosave" boolean
+    "id" serial PRIMARY KEY NOT NULL,
+    "parent_id" integer,
+    "version_title" varchar,
+    "version_slug" varchar,
+    "version_type" "enum__releases_v_version_type",
+    "version_medium" "enum__releases_v_version_medium" DEFAULT 'music',
+    "version_artist_id" integer,
+    "version_release_date" timestamp(3) with time zone,
+    "version_cover_image_id" integer,
+    "version_banner_image_id" integer,
+    "version_description" varchar,
+    "version_explicit" boolean DEFAULT false,
+    "version_genre" "enum__releases_v_version_genre",
+    "version_feed_locked" boolean DEFAULT false,
+    "version_license" varchar,
+    "version_upc" varchar,
+    "version_location" varchar,
+    "version_social_url" varchar,
+    "version_suggested_sats" numeric DEFAULT 5000,
+    "version_myradio_kicker" varchar,
+    "version_myradio_theme" "enum__releases_v_version_myradio_theme" DEFAULT 'catalog',
+    "version_myradio_theme_schema_version" numeric DEFAULT 1,
+    "version_myradio_theme_revision" numeric DEFAULT 0,
+    "version_myradio_theme_assets_background_image_id" integer,
+    "version_myradio_theme_assets_texture_image_id" integer,
+    "version_myradio_theme_assets_mark_image_id" integer,
+    "version_myradio_theme_tokens_chrome" varchar,
+    "version_myradio_theme_tokens_muted" varchar,
+    "version_myradio_theme_tokens_accent" varchar,
+    "version_myradio_theme_tokens_accent_contrast" varchar,
+    "version_myradio_theme_tokens_beacon" varchar,
+    "version_myradio_theme_tokens_beacon_glow" varchar,
+    "version_myradio_theme_tokens_line" varchar,
+    "version_myradio_theme_tokens_panel_start" varchar,
+    "version_myradio_theme_tokens_panel_end" varchar,
+    "version_myradio_theme_tokens_panel_text" varchar,
+    "version_myradio_theme_tokens_panel_muted" varchar,
+    "version_myradio_theme_tokens_panel_alt" varchar,
+    "version_myradio_theme_tokens_panel_active" varchar,
+    "version_myradio_theme_tokens_action_background" varchar,
+    "version_myradio_theme_tokens_action_text" varchar,
+    "version_myradio_theme_tokens_popover_background" varchar,
+    "version_myradio_theme_tokens_popover_text" varchar,
+    "version_myradio_theme_tokens_popover_muted" varchar,
+    "version_myradio_theme_options_artwork_treatment" "mr_artwork_treatment" DEFAULT 'full',
+    "version_myradio_theme_options_type_treatment" "mr_type_treatment" DEFAULT 'default',
+    "version_myradio_theme_options_surface_treatment" "mr_surface_treatment" DEFAULT 'solid',
+    "version_myradio_theme_options_motion" "mr_theme_motion" DEFAULT 'subtle',
+    "version_myradio_signal_card_layout" "mr_signal_card_layout" DEFAULT 'standard',
+    "version_myradio_signal_card_show_artwork" boolean DEFAULT true,
+    "version_myradio_social_card_layout" "mr_social_card_layout" DEFAULT 'standard',
+    "version_myradio_heart_url" varchar,
+    "version_myradio_order" numeric DEFAULT 100,
+    "version_myradio_token" varchar,
+    "version_myradio_is_default" boolean DEFAULT false,
+    "version_myradio_terrestrial_handoff" boolean DEFAULT false,
+    "version_distribution_release_lane" "enum__releases_v_version_distribution_release_lane",
+    "version_distribution_public_visibility" "enum__releases_v_version_distribution_public_visibility" DEFAULT 'preview',
+    "version_distribution_shadow_post_url" varchar,
+    "version_distribution_shadow_post_slug" varchar,
+    "version_distribution_default_share_target" "enum__releases_v_version_distribution_default_share_target" DEFAULT 'story',
+    "version_distribution_embed_enabled" boolean DEFAULT false,
+    "version_distribution_campaign_key" varchar,
+    "version_distribution_share_title" varchar,
+    "version_distribution_share_description" varchar,
+    "version_distribution_analytics_schema_version" numeric DEFAULT 1,
+    "version_preview_attestation_attested_at" timestamp(3) with time zone,
+    "version_preview_attestation_attested_by_id" integer,
+    "version_preview_attestation_theme_revision_at" numeric,
+    "version_preview_attestation_track_fingerprint_at" varchar,
+    "version_preview_attestation_player_version_at" varchar,
+    "version_preview_attestation_schema_version_at" numeric,
+    "version_analytics_verification_latest_id" integer,
+    "version_analytics_verification_summary_verified_at" timestamp(3) with time zone,
+    "version_analytics_verification_summary_verified_by_id" integer,
+    "version_analytics_verification_summary_environment" varchar,
+    "version_analytics_verification_summary_schema_version" numeric,
+    "version_analytics_verification_summary_player_version" varchar,
+    "version_analytics_verification_summary_theme_version" numeric,
+    "version_release_guid" varchar,
+    "version_status" "enum__releases_v_version_status" DEFAULT 'draft',
+    "version_workflow_state" "enum__releases_v_version_workflow_state" DEFAULT 'draft',
+    "version_updated_at" timestamp(3) with time zone,
+    "version_created_at" timestamp(3) with time zone,
+    "version__status" "enum__releases_v_version_status" DEFAULT 'draft',
+    "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+    "latest" boolean,
+    "autosave" boolean
   );
-  
+
   CREATE TABLE "_tracks_v_version_funding_links" (
-  	"_order" integer NOT NULL,
-  	"_parent_id" integer NOT NULL,
-  	"id" serial PRIMARY KEY NOT NULL,
-  	"provider" "enum__tracks_v_version_funding_links_provider" DEFAULT 'other',
-  	"label" varchar,
-  	"url" varchar,
-  	"_uuid" varchar
+    "_order" integer NOT NULL,
+    "_parent_id" integer NOT NULL,
+    "id" serial PRIMARY KEY NOT NULL,
+    "provider" "enum__tracks_v_version_funding_links_provider" DEFAULT 'other',
+    "label" varchar,
+    "url" varchar,
+    "_uuid" varchar
   );
-  
+
   CREATE TABLE "_tracks_v_version_subgenres" (
-  	"_order" integer NOT NULL,
-  	"_parent_id" integer NOT NULL,
-  	"id" serial PRIMARY KEY NOT NULL,
-  	"name" varchar,
-  	"_uuid" varchar
+    "_order" integer NOT NULL,
+    "_parent_id" integer NOT NULL,
+    "id" serial PRIMARY KEY NOT NULL,
+    "name" varchar,
+    "_uuid" varchar
   );
-  
+
   CREATE TABLE "_tracks_v" (
-  	"id" serial PRIMARY KEY NOT NULL,
-  	"parent_id" integer,
-  	"version_title" varchar,
-  	"version_slug" varchar,
-  	"version_release_id" integer,
-  	"version_track_number" numeric,
-  	"version_audio_file_id" integer,
-  	"version_audio_url" varchar,
-  	"version_mime_type" varchar DEFAULT 'audio/mpeg',
-  	"version_file_size" numeric,
-  	"version_duration" numeric,
-  	"version_video_url" varchar,
-  	"version_video_mime_type" varchar DEFAULT 'video/mp4',
-  	"version_video_file_size" numeric,
-  	"version_transcript_url" varchar,
-  	"version_year" numeric,
-  	"version_songwriters" varchar,
-  	"version_personnel" varchar,
-  	"version_story" varchar,
-  	"version_hide_funding" boolean DEFAULT false,
-  	"version_artwork_id" integer,
-  	"version_description" varchar,
-  	"version_explicit" boolean DEFAULT false,
-  	"version_isrc" varchar,
-  	"version_genre" "enum__tracks_v_version_genre",
-  	"version_guid" varchar,
-  	"version_share_id" varchar,
-  	"version_share_excerpt" varchar,
-  	"version_lyrics_status" "enum__tracks_v_version_lyrics_status" DEFAULT 'missing',
-  	"version_rights_confirmed" boolean DEFAULT false,
-  	"version_rights_confirmed_at" timestamp(3) with time zone,
-  	"version_rights_confirmed_by_id" integer,
-  	"version_track_readiness" "enum__tracks_v_version_track_readiness" DEFAULT 'draft',
-  	"version_updated_at" timestamp(3) with time zone,
-  	"version_created_at" timestamp(3) with time zone,
-  	"version__status" "enum__tracks_v_version_status" DEFAULT 'draft',
-  	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
-  	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
-  	"latest" boolean,
-  	"autosave" boolean
+    "id" serial PRIMARY KEY NOT NULL,
+    "parent_id" integer,
+    "version_title" varchar,
+    "version_slug" varchar,
+    "version_release_id" integer,
+    "version_track_number" numeric,
+    "version_audio_file_id" integer,
+    "version_audio_url" varchar,
+    "version_mime_type" varchar DEFAULT 'audio/mpeg',
+    "version_file_size" numeric,
+    "version_duration" numeric,
+    "version_video_url" varchar,
+    "version_video_mime_type" varchar DEFAULT 'video/mp4',
+    "version_video_file_size" numeric,
+    "version_transcript_url" varchar,
+    "version_year" numeric,
+    "version_songwriters" varchar,
+    "version_personnel" varchar,
+    "version_story" varchar,
+    "version_hide_funding" boolean DEFAULT false,
+    "version_artwork_id" integer,
+    "version_description" varchar,
+    "version_explicit" boolean DEFAULT false,
+    "version_isrc" varchar,
+    "version_genre" "enum__tracks_v_version_genre",
+    "version_guid" varchar,
+    "version_share_id" varchar,
+    "version_share_excerpt" varchar,
+    "version_lyrics_status" "enum__tracks_v_version_lyrics_status" DEFAULT 'missing',
+    "version_rights_confirmed" boolean DEFAULT false,
+    "version_rights_confirmed_at" timestamp(3) with time zone,
+    "version_rights_confirmed_by_id" integer,
+    "version_track_readiness" "enum__tracks_v_version_track_readiness" DEFAULT 'draft',
+    "version_updated_at" timestamp(3) with time zone,
+    "version_created_at" timestamp(3) with time zone,
+    "version__status" "enum__tracks_v_version_status" DEFAULT 'draft',
+    "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+    "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+    "latest" boolean,
+    "autosave" boolean
   );
-  
+
   CREATE TABLE "avr_sample_event_ids" (
-  	"_order" integer NOT NULL,
-  	"_parent_id" integer NOT NULL,
-  	"id" varchar PRIMARY KEY NOT NULL,
-  	"event_id" varchar
+    "_order" integer NOT NULL,
+    "_parent_id" integer NOT NULL,
+    "id" varchar PRIMARY KEY NOT NULL,
+    "event_id" varchar
   );
-  
+
   CREATE TABLE "avr" (
-  	"id" serial PRIMARY KEY NOT NULL,
-  	"release_id" integer NOT NULL,
-  	"track_id" integer,
-  	"attempted_at" timestamp(3) with time zone,
-  	"attempted_by_id" integer,
-  	"environment" varchar NOT NULL,
-  	"outcome" "enum_avr_outcome" NOT NULL,
-  	"schema_version" numeric,
-  	"player_version" varchar,
-  	"theme_version" numeric,
-  	"notes" varchar,
-  	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
-  	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
+    "id" serial PRIMARY KEY NOT NULL,
+    "release_id" integer NOT NULL,
+    "track_id" integer,
+    "attempted_at" timestamp(3) with time zone,
+    "attempted_by_id" integer,
+    "environment" varchar NOT NULL,
+    "outcome" "enum_avr_outcome" NOT NULL,
+    "schema_version" numeric,
+    "player_version" varchar,
+    "theme_version" numeric,
+    "notes" varchar,
+    "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+    "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
   );
-  
+
   ALTER TABLE "releases_subgenres" ALTER COLUMN "name" DROP NOT NULL;
   ALTER TABLE "releases_funding_links" ALTER COLUMN "provider" DROP NOT NULL;
   ALTER TABLE "releases_funding_links" ALTER COLUMN "url" DROP NOT NULL;
@@ -462,11 +462,11 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   DROP TABLE "avr_sample_event_ids" CASCADE;
   DROP TABLE "avr" CASCADE;
   ALTER TABLE "releases" DROP CONSTRAINT "releases_myradio_theme_assets_background_image_id_media_id_fk";
-  
+
   ALTER TABLE "releases" DROP CONSTRAINT "releases_myradio_theme_assets_texture_image_id_media_id_fk";
-  
+
   ALTER TABLE "releases" DROP CONSTRAINT "releases_myradio_theme_assets_mark_image_id_media_id_fk";
-  
+
   ALTER TABLE "releases" DROP CONSTRAINT "releases_preview_attestation_attested_by_id_users_id_fk";
 
   -- NOTE (hand-fixed, confirmed by actually running this down migration against a
@@ -479,7 +479,7 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   -- same redundancy earlier.
 
   ALTER TABLE "releases" DROP CONSTRAINT "releases_analytics_verification_summary_verified_by_id_users_id_fk";
-  
+
   ALTER TABLE "tracks" DROP CONSTRAINT "tracks_rights_confirmed_by_id_users_id_fk";
 
   -- NOTE (hand-fixed, same reasoning as above): this FK also references avr.id, so
