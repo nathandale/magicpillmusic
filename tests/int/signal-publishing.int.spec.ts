@@ -97,10 +97,14 @@ describe('Workstream 1A: access control and validation', () => {
     })
 
     it('a passing receipt updates the release pointer and last-known-good summary', async () => {
-      const admin = await makeUser(['admin'])
       const artist = await makeArtist()
       const release = await makeDraftRelease(artist.id)
 
+      // A 'pass' outcome requires the trusted-verification-run context (review
+      // round 2, decision: "a genuine pass must be impossible" without it) — this
+      // simulates what only a real Workstream 1B verification runner could do.
+      // See tests/int/signal-publishing-hardening.int.spec.ts §5 for the tests
+      // proving an ordinary authenticated request (even as admin) cannot.
       const receipt = await payload.create({
         collection: 'analytics-verification-receipts',
         data: {
@@ -111,8 +115,8 @@ describe('Workstream 1A: access control and validation', () => {
           playerVersion: '1.2.3',
           themeVersion: 4,
         },
-        user: admin,
-        overrideAccess: false,
+        context: { trustedVerificationRun: true },
+        overrideAccess: true,
       })
 
       const updated = await payload.findByID({ collection: 'releases', id: release.id, depth: 0 })
