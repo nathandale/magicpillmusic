@@ -23,9 +23,18 @@ export const GET = async () => {
     payload.find({
       collection: 'releases',
       where: {
-        status: {
-          equals: 'published',
-        },
+        and: [
+          { status: { equals: 'published' } },
+          // See src/app/(frontend)/feeds/[slug]/route.ts for why the "exists: false"
+          // branch is here — it keeps releases saved before this field existed
+          // resolving exactly as they did before.
+          {
+            or: [
+              { 'distribution.publicVisibility': { equals: 'public' } },
+              { 'distribution.publicVisibility': { exists: false } },
+            ],
+          },
+        ],
       },
       sort: ['myradio.order', '-releaseDate'],
       depth: 0,

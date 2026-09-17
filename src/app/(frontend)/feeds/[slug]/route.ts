@@ -21,12 +21,20 @@ export const GET = async (_request: Request, context: RouteContext) => {
   const releaseResult = await payload.find({
     collection: 'releases',
     where: {
-      slug: {
-        equals: slug,
-      },
-      status: {
-        equals: 'published',
-      },
+      and: [
+        { slug: { equals: slug } },
+        { status: { equals: 'published' } },
+        // `distribution.publicVisibility` is new (ND-MR-001) and optional — a
+        // release saved before this field existed has no value for it and must
+        // keep resolving exactly as it did before. Only an explicit "archived"
+        // or "preview" value removes a release from this public route.
+        {
+          or: [
+            { 'distribution.publicVisibility': { equals: 'public' } },
+            { 'distribution.publicVisibility': { exists: false } },
+          ],
+        },
+      ],
     },
     depth: 2,
     limit: 1,
