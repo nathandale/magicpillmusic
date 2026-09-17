@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://magicpillmusic.com/schemas/release-theme.schema.json",
+  "title": "ResolvedReleaseTheme",
+  "description": "Shared, versioned contract for a release's resolved theme tokens. DEMU (this repo) produces documents against this schema in the `myradio:theme-config` feed tag; MYRADIO's release-theme resolver validates incoming theme-config against the same schema before applying it. Both repos must keep an identical copy of this file — see the checksum test in tests/int/release-theme-schema.int.spec.ts, which fails if this file changes without a deliberate, coordinated update on both sides. Bump `themeSchemaVersion` whenever the token set or its meaning changes in a way older clients cannot safely ignore.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["themeSchemaVersion"],
+  "properties": {
+    "themeSchemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Version of this schema the document conforms to. A client that does not understand this version must fall back to the named theme preset plus release/track artwork, per EO §7.8."
+    },
+    "chrome": { "$ref": "#/definitions/hexColor" },
+    "muted": { "$ref": "#/definitions/hexColor" },
+    "accent": { "$ref": "#/definitions/hexColor" },
+    "accentContrast": { "$ref": "#/definitions/hexColor" },
+    "beacon": { "$ref": "#/definitions/hexColor" },
+    "beaconGlow": { "$ref": "#/definitions/hexColor" },
+    "line": { "$ref": "#/definitions/hexColor" },
+    "panelStart": { "$ref": "#/definitions/hexColor" },
+    "panelEnd": { "$ref": "#/definitions/hexColor" },
+    "panelText": { "$ref": "#/definitions/hexColor" },
+    "panelMuted": { "$ref": "#/definitions/hexColor" },
+    "panelAlt": { "$ref": "#/definitions/hexColor" },
+    "panelActive": { "$ref": "#/definitions/hexColor" },
+    "actionBackground": { "$ref": "#/definitions/hexColor" },
+    "actionText": { "$ref": "#/definitions/hexColor" },
+    "popoverBackground": { "$ref": "#/definitions/hexColor" },
+    "popoverText": { "$ref": "#/definitions/hexColor" },
+    "popoverMuted": { "$ref": "#/definitions/hexColor" }
+  },
+  "definitions": {
+    "hexColor": {
+      "type": "string",
+      "pattern": "^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+      "description": "6-digit hex color, or 8-digit with alpha. Absent/omitted means inherit the named theme preset for this token — this schema never requires all 18 tokens, only that any token present is well-formed."
+    }
+  }
+}
