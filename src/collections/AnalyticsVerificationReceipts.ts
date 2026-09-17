@@ -2,6 +2,7 @@
 import type { Access, CollectionConfig } from 'payload'
 
 import { isPublisher } from '../access/roles'
+import { serverControlledFieldAccess } from '../access/workflowTransitions'
 import type { User } from '@/payload-types'
 
 /**
@@ -11,12 +12,15 @@ import type { User } from '@/payload-types'
  * for every role including admin. A bad or superseded attempt is superseded by a new
  * attempt, not corrected in place.
  *
- * Workstream 1A ships this data model only. Nothing in this repo creates a `pass`
- * receipt yet — that requires the "Verify analytics" action and real PostHog API
- * calls, which are Workstream 1B/4 and not authorized. Until then this collection
- * exists so the publish-validation hook has something real to check (and correctly
- * fail closed against, since no receipts exist), and no analytics condition can be
- * satisfied by anything other than a genuine recorded pass.
+ * Workstream 1A ships this data model only. A genuine `pass` receipt requires a
+ * "trusted verification run" context (`req.context.trustedVerificationRun === true`)
+ * that only internal, non-HTTP-reachable server code can set on a Local API call —
+ * no REST/GraphQL request body can ever populate Payload's `context`, and nothing
+ * shipped in Workstream 1A sets that flag anywhere. That makes a genuine pass
+ * impossible to obtain through any externally reachable path today, by construction,
+ * not by convention. Staff may still log a manual `fail` record for their own
+ * audit trail (e.g. "tried in production, broke on Safari") without that gate,
+ * since a fail can't be used to bypass anything.
  */
 const disallow: Access = () => false
 
@@ -25,8 +29,8 @@ export const AnalyticsVerificationReceipts: CollectionConfig = {
   // Short dbName: the slug (API route, `relationTo` references) stays fully
   // descriptive, but is long enough that Postgres FK constraint names combining it
   // with the referencing column on Releases exceeded the 63-character identifier
-  // limit (hit in practice generating this migration against a scratch DB — see
-  // the Workstream 1A completion report).
+  // limit (hit in practice generating this migration against a scratch database —
+  // see the Workstream 1A completion report).
   dbName: 'avr',
   admin: {
     useAsTitle: 'id',
@@ -53,15 +57,26 @@ export const AnalyticsVerificationReceipts: CollectionConfig = {
       relationTo: 'tracks',
       admin: { description: 'Set when verification is track-scoped rather than release-wide.' },
     },
+    // --- Server-controlled identity/timestamp fields ---
+    // `admin.readOnly` alone only hides these in the admin UI; it does not stop a
+    // direct REST/GraphQL/Local-API-with-overrideAccess:false write. These also
+    // carry real field-level access (create/update always false), so a client can
+    // never submit a value for them — only this collection's own beforeChange hook
+    // computes them, from trusted server-side inputs (req.user, Date.now(), and —
+    // for the snapshot fields — the release/track state the trusted caller passed
+    // in as data, which is itself gated by the trustedVerificationRun context below
+    // for a `pass` outcome).
     {
       name: 'attemptedAt',
       type: 'date',
+      access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
       admin: { readOnly: true },
     },
     {
       name: 'attemptedBy',
       type: 'relationship',
       relationTo: 'users',
+      access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
       admin: { readOnly: true },
     },
     {
@@ -77,6 +92,22 @@ export const AnalyticsVerificationReceipts: CollectionConfig = {
         { label: 'Pass', value: 'pass' },
         { label: 'Fail', value: 'fail' },
       ],
+    },
+    // --- Snapshot of the exact production configuration this attempt verified ---
+    // Checked by the publish-validation hook (condition 19) against the release's
+    // *current* state — a receipt that doesn't match on every one of these is
+    // treated as not applicable, not as "close enough."
+    {
+      name: 'releaseGuid',
+      type: 'text',
+      access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
+      admin: { readOnly: true, description: 'Snapshot of the release GUID at the moment of this attempt.' },
+    },
+    {
+      name: 'trackFingerprint',
+      type: 'text',
+      access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
+      admin: { readOnly: true, description: 'Snapshot of the track-set fingerprint (src/lib/trackFingerprint.ts) at the moment of this attempt.' },
     },
     {
       name: 'schemaVersion',
@@ -102,10 +133,29 @@ export const AnalyticsVerificationReceipts: CollectionConfig = {
   ],
   hooks: {
     beforeChange: [
-      ({ data, operation }) => {
-        if (operation === 'create' && !data?.attemptedAt) {
-          data!.attemptedAt = new Date().toISOString()
+      ({ data, operation, req }) => {
+        if (operation !== 'create' || !data) return data
+
+        // Server-set, unconditionally — never trust a client-submitted value for
+        // these, even from an authenticated publisher.
+        data.attemptedAt = new Date().toISOString()
+        data.attemptedBy = req.user?.id ?? null
+
+        // The one real security gate in this collection: a `pass` outcome can only
+        // be created by a Local API call that explicitly sets
+        // `context.trustedVerificationRun = true`. No HTTP request (REST or
+        // GraphQL) can ever populate Payload's `context` — it exists only for
+        // server-side/hook-to-hook calls — and nothing in Workstream 1A's own code
+        // sets this flag anywhere reachable. Until Workstream 1B wires a genuine
+        // MYRADIO/PostHog verification runner to call this with that context, a
+        // passing receipt is architecturally impossible to create, not merely
+        // discouraged.
+        if (data.outcome === 'pass' && req.context?.trustedVerificationRun !== true) {
+          throw new Error(
+            'A passing analytics-verification receipt can only be created by the trusted verification runner (Workstream 1B), not directly. Log a "fail" outcome if you need to record a manual attempt.',
+          )
         }
+
         return data
       },
     ],
@@ -138,7 +188,8 @@ export const AnalyticsVerificationReceipts: CollectionConfig = {
             },
           },
           req,
-          context: { skipReceiptPointerUpdate: true },
+          context: { skipReceiptPointerUpdate: true, skipPublicationStateManagement: true },
+          depth: 0,
         })
 
         return doc
