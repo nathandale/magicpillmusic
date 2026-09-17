@@ -15,6 +15,7 @@ import { Releases } from './collections/Releases'
 import { Tracks } from './collections/Tracks'
 import { ValueSplits } from './collections/ValueSplits'
 import { AudioMedia } from './collections/AudioMedia'
+import { AnalyticsVerificationReceipts } from './collections/AnalyticsVerificationReceipts'
 import { Footer } from './Footer/config'
 import { Header } from './Header/config'
 import { PublishingSettings } from './globals/PublishingSettings'
@@ -76,8 +77,30 @@ export default buildConfig({
     pool: {
       connectionString: process.env.DATABASE_URL || '',
     },
+    // This project manages schema changes through hand-authored migration files
+    // (src/migrations) — Postgres's dev-only automatic "push" schema sync must stay
+    // off, or Payload will try to reconcile the live schema against the current
+    // config on every startup outside of `payload migrate`, independent of and in
+    // addition to the migrations. Confirmed while adding ND-MR-001's new collection:
+    // that auto-push generates its own constraint-naming/truncation logic, distinct
+    // from `migrate:create`'s, and it does not agree with what the migrations
+    // actually created — `pnpm test:int` failed on `getPayload()` initialization
+    // with "constraint ... does not exist" until this was set explicitly.
+    push: false,
   }),
-  collections: [Pages, Posts, Media, Categories, Users, Artists, Releases, Tracks, ValueSplits, AudioMedia],
+  collections: [
+    Pages,
+    Posts,
+    Media,
+    Categories,
+    Users,
+    Artists,
+    Releases,
+    Tracks,
+    ValueSplits,
+    AudioMedia,
+    AnalyticsVerificationReceipts,
+  ],
   cors: [getServerSideURL()].filter(Boolean),
   globals: [Header, Footer, PublishingSettings],
   plugins,

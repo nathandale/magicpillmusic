@@ -77,6 +77,7 @@ export interface Config {
     tracks: Track;
     'value-splits': ValueSplit;
     'audio-media': AudioMedia;
+    'analytics-verification-receipts': AnalyticsVerificationReceipt;
     redirects: Redirect;
     forms: Form;
     'form-submissions': FormSubmission;
@@ -104,6 +105,7 @@ export interface Config {
     tracks: TracksSelect<false> | TracksSelect<true>;
     'value-splits': ValueSplitsSelect<false> | ValueSplitsSelect<true>;
     'audio-media': AudioMediaSelect<false> | AudioMediaSelect<true>;
+    'analytics-verification-receipts': AnalyticsVerificationReceiptsSelect<false> | AnalyticsVerificationReceiptsSelect<true>;
     redirects: RedirectsSelect<false> | RedirectsSelect<true>;
     forms: FormsSelect<false> | FormsSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
@@ -1032,6 +1034,133 @@ export interface Release {
      */
     theme?: ('catalog' | 'terrestrial' | 'nathan-archive' | 'wooden-revolt' | 'parade' | 'monochrome') | null;
     /**
+     * Version of the shared release-theme schema this record’s theme fields conform to (src/schemas/release-theme.schema.json).
+     */
+    themeSchemaVersion?: number | null;
+    /**
+     * Increments whenever the published theme or its assets change. Drives cache invalidation, and invalidates any stored preview attestation or analytics receipt for this release.
+     */
+    themeRevision?: number | null;
+    /**
+     * Approved release-identity assets shared by full MYRADIO, the Signal Card, and social-card output. Never a generated imitation.
+     */
+    themeAssets?: {
+      /**
+       * Approved release background image.
+       */
+      backgroundImage?: (number | null) | Media;
+      /**
+       * Optional grain, paper, or signal texture.
+       */
+      textureImage?: (number | null) | Media;
+      /**
+       * Optional approved release mark.
+       */
+      markImage?: (number | null) | Media;
+    };
+    /**
+     * Optional per-release color overrides of the selected preset. Leave any field blank to inherit that token from the preset. Validated against the shared release-theme schema.
+     */
+    themeTokens?: {
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      chrome?: string | null;
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      muted?: string | null;
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      accent?: string | null;
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      accentContrast?: string | null;
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      beacon?: string | null;
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      beaconGlow?: string | null;
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      line?: string | null;
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      panelStart?: string | null;
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      panelEnd?: string | null;
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      panelText?: string | null;
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      panelMuted?: string | null;
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      panelAlt?: string | null;
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      panelActive?: string | null;
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      actionBackground?: string | null;
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      actionText?: string | null;
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      popoverBackground?: string | null;
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      popoverText?: string | null;
+      /**
+       * Hex color. Leave blank to inherit the preset.
+       */
+      popoverMuted?: string | null;
+    };
+    themeOptions?: {
+      /**
+       * Responsive artwork behavior.
+       */
+      artworkTreatment?: ('full' | 'crop' | 'framed') | null;
+      /**
+       * Installed type treatment only — no uploaded web fonts in v1. This starter allowlist should be confirmed/extended against the site theme’s actual installed treatments before the Signal Card ships.
+       */
+      typeTreatment?: ('default' | 'display' | 'mono') | null;
+      surfaceTreatment?: ('solid' | 'gradient' | 'image' | 'image-gradient') | null;
+      /**
+       * Must honor reduced motion at the CSS level in MYRADIO; no arbitrary animation code.
+       */
+      motion?: ('none' | 'subtle') | null;
+    };
+    signalCard?: {
+      layout?: ('standard' | 'broadcast' | 'archival' | 'minimal') | null;
+      /**
+       * Turn off only when the approved background is itself the identity.
+       */
+      showArtwork?: boolean | null;
+    };
+    socialCard?: {
+      layout?: ('standard' | 'minimal') | null;
+    };
+    /**
      * Link back to the matching section on nathandale.com/heart
      */
     heartUrl?: string | null;
@@ -1053,10 +1182,135 @@ export interface Release {
     terrestrialHandoff?: boolean | null;
   };
   /**
+   * SHADOW story relationship and campaign controls for the Signal Card publishing system. Carried in the feed as <podcast:txt purpose="myradio:…">.
+   */
+  distribution?: {
+    /**
+     * Editorial framing. "Archive" for older/unreleased material being newly surfaced — never mark archive material as newly current.
+     */
+    releaseLane?: ('current' | 'archive' | 'catalog') | null;
+    /**
+     * Separate from the editing workflow: only "public" releases are intended to appear in the public publisher feed.
+     */
+    publicVisibility?: ('preview' | 'public' | 'archived') | null;
+    /**
+     * Canonical SHADOW story URL. Optional while drafting; required before "SHADOW ready".
+     */
+    shadowPostUrl?: string | null;
+    /**
+     * Ghost post slug for this release’s SHADOW story.
+     */
+    shadowPostSlug?: string | null;
+    defaultShareTarget?: ('story' | 'song') | null;
+    /**
+     * Explicit authorization for public Signal Card embedding of this release.
+     */
+    embedEnabled?: boolean | null;
+    /**
+     * Stable campaign identifier for attribution/dashboard grouping. Immutable once the release reaches "scheduled" — enforced in the publish-validation hook, not just here.
+     */
+    campaignKey?: string | null;
+    /**
+     * Optional social title override. Falls back to the standard "{Track} — {Artist} | MYRADIO" title when blank.
+     */
+    shareTitle?: string | null;
+    /**
+     * Optional bounded social description override.
+     */
+    shareDescription?: string | null;
+    analyticsSchemaVersion?: number | null;
+  };
+  /**
+   * Set only by the "Run player preview" action (not yet available — depends on Workstream 1B). Invalidated automatically when theme, tracks, player version, or analytics schema version change afterward.
+   */
+  previewAttestation?: {
+    attestedAt?: string | null;
+    attestedBy?: (number | null) | User;
+    /**
+     * themeRevision value at the moment of attestation.
+     */
+    themeRevisionAt?: number | null;
+    /**
+     * Composite fingerprint of track IDs, durations, and audio identifiers at the moment of attestation.
+     */
+    trackFingerprintAt?: string | null;
+    playerVersionAt?: string | null;
+    schemaVersionAt?: number | null;
+  };
+  /**
+   * Set only by the "Verify analytics" action (not yet available — depends on Workstream 1B/4). Every attempt, pass or fail, is permanently recorded in Analytics Verification Receipts; this is just the latest passing one.
+   */
+  analyticsVerification?: {
+    latest?: (number | null) | AnalyticsVerificationReceipt;
+    summary?: {
+      verifiedAt?: string | null;
+      verifiedBy?: (number | null) | User;
+      environment?: string | null;
+      schemaVersion?: number | null;
+      playerVersion?: string | null;
+      themeVersion?: number | null;
+      sampleEventIds?:
+        | {
+            eventId?: string | null;
+            id?: string | null;
+          }[]
+        | null;
+    };
+  };
+  /**
    * Stable feed GUID for this release (auto-generated)
    */
   releaseGuid?: string | null;
+  /**
+   * Legacy two-value status. Kept as-is for backward compatibility with the existing feed routes — do not remove. `workflowState` below is the controlled, validated state for the Signal Card publishing system.
+   */
   status?: ('draft' | 'published') | null;
+  /**
+   * Publisher/admin may advance most states; only admin may set "Scheduled" or "Published".
+   */
+  workflowState?:
+    | (
+        | 'draft'
+        | 'media_ready'
+        | 'player_previewed'
+        | 'shadow_ready'
+        | 'analytics_verified'
+        | 'scheduled'
+        | 'published'
+        | 'archived'
+      )
+    | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * Append-only record of every PostHog publishing-gate attempt (EO §15). Never edited or deleted.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "analytics-verification-receipts".
+ */
+export interface AnalyticsVerificationReceipt {
+  id: number;
+  release: number | Release;
+  /**
+   * Set when verification is track-scoped rather than release-wide.
+   */
+  track?: (number | null) | Track;
+  attemptedAt?: string | null;
+  attemptedBy?: (number | null) | User;
+  environment: string;
+  outcome: 'pass' | 'fail';
+  schemaVersion?: number | null;
+  playerVersion?: string | null;
+  themeVersion?: number | null;
+  sampleEventIds?:
+    | {
+        eventId?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  notes?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1189,8 +1443,31 @@ export interface Track {
    * Stable feed GUID (auto-generated)
    */
   guid?: string | null;
+  /**
+   * Immutable, human-safe public track ID (auto-generated from the GUID). Never derived from the title alone.
+   */
+  shareId?: string | null;
+  /**
+   * Optional bounded track-specific share copy.
+   */
+  shareExcerpt?: string | null;
+  /**
+   * Prevents accidental publication of unverified lyrics — checked by the publish-validation hook.
+   */
+  lyricsStatus?: ('missing' | 'draft' | 'verified' | 'not_applicable') | null;
+  /**
+   * Attestation that audio, artwork, lyrics, and promotional use are authorized.
+   */
+  rightsConfirmed?: boolean | null;
+  rightsConfirmedAt?: string | null;
+  rightsConfirmedBy?: (number | null) | User;
+  /**
+   * This track’s own data/audio readiness. Says nothing about public visibility — that is the parent Release’s decision alone.
+   */
+  trackReadiness?: ('draft' | 'media_ready' | 'preview_verified') | null;
   updatedAt: string;
   createdAt: string;
+  _status?: ('draft' | 'published') | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1480,6 +1757,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'audio-media';
         value: number | AudioMedia;
+      } | null)
+    | ({
+        relationTo: 'analytics-verification-receipts';
+        value: number | AnalyticsVerificationReceipt;
       } | null)
     | ({
         relationTo: 'redirects';
@@ -1960,16 +2241,113 @@ export interface ReleasesSelect<T extends boolean = true> {
     | {
         kicker?: T;
         theme?: T;
+        themeSchemaVersion?: T;
+        themeRevision?: T;
+        themeAssets?:
+          | T
+          | {
+              backgroundImage?: T;
+              textureImage?: T;
+              markImage?: T;
+            };
+        themeTokens?:
+          | T
+          | {
+              chrome?: T;
+              muted?: T;
+              accent?: T;
+              accentContrast?: T;
+              beacon?: T;
+              beaconGlow?: T;
+              line?: T;
+              panelStart?: T;
+              panelEnd?: T;
+              panelText?: T;
+              panelMuted?: T;
+              panelAlt?: T;
+              panelActive?: T;
+              actionBackground?: T;
+              actionText?: T;
+              popoverBackground?: T;
+              popoverText?: T;
+              popoverMuted?: T;
+            };
+        themeOptions?:
+          | T
+          | {
+              artworkTreatment?: T;
+              typeTreatment?: T;
+              surfaceTreatment?: T;
+              motion?: T;
+            };
+        signalCard?:
+          | T
+          | {
+              layout?: T;
+              showArtwork?: T;
+            };
+        socialCard?:
+          | T
+          | {
+              layout?: T;
+            };
         heartUrl?: T;
         order?: T;
         token?: T;
         isDefault?: T;
         terrestrialHandoff?: T;
       };
+  distribution?:
+    | T
+    | {
+        releaseLane?: T;
+        publicVisibility?: T;
+        shadowPostUrl?: T;
+        shadowPostSlug?: T;
+        defaultShareTarget?: T;
+        embedEnabled?: T;
+        campaignKey?: T;
+        shareTitle?: T;
+        shareDescription?: T;
+        analyticsSchemaVersion?: T;
+      };
+  previewAttestation?:
+    | T
+    | {
+        attestedAt?: T;
+        attestedBy?: T;
+        themeRevisionAt?: T;
+        trackFingerprintAt?: T;
+        playerVersionAt?: T;
+        schemaVersionAt?: T;
+      };
+  analyticsVerification?:
+    | T
+    | {
+        latest?: T;
+        summary?:
+          | T
+          | {
+              verifiedAt?: T;
+              verifiedBy?: T;
+              environment?: T;
+              schemaVersion?: T;
+              playerVersion?: T;
+              themeVersion?: T;
+              sampleEventIds?:
+                | T
+                | {
+                    eventId?: T;
+                    id?: T;
+                  };
+            };
+      };
   releaseGuid?: T;
   status?: T;
+  workflowState?: T;
   updatedAt?: T;
   createdAt?: T;
+  _status?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2014,8 +2392,16 @@ export interface TracksSelect<T extends boolean = true> {
         id?: T;
       };
   guid?: T;
+  shareId?: T;
+  shareExcerpt?: T;
+  lyricsStatus?: T;
+  rightsConfirmed?: T;
+  rightsConfirmedAt?: T;
+  rightsConfirmedBy?: T;
+  trackReadiness?: T;
   updatedAt?: T;
   createdAt?: T;
+  _status?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2049,6 +2435,30 @@ export interface AudioMediaSelect<T extends boolean = true> {
   height?: T;
   focalX?: T;
   focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "analytics-verification-receipts_select".
+ */
+export interface AnalyticsVerificationReceiptsSelect<T extends boolean = true> {
+  release?: T;
+  track?: T;
+  attemptedAt?: T;
+  attemptedBy?: T;
+  environment?: T;
+  outcome?: T;
+  schemaVersion?: T;
+  playerVersion?: T;
+  themeVersion?: T;
+  sampleEventIds?:
+    | T
+    | {
+        eventId?: T;
+        id?: T;
+      };
+  notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2526,6 +2936,10 @@ export interface TaskSchedulePublish {
       | ({
           relationTo: 'posts';
           value: number | Post;
+        } | null)
+      | ({
+          relationTo: 'releases';
+          value: number | Release;
         } | null);
     global?: string | null;
     user?: (number | null) | User;
