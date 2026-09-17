@@ -1,4 +1,5 @@
 import type { Artist, PublishingSetting, Release, Track, ValueSplit } from '../payload-types'
+import { buildThemeConfigPayload } from './release-theme'
 
 type ReleaseWithFeedFields = Release & {
   medium?: 'music' | 'video' | null
@@ -27,6 +28,19 @@ type ThemeExtensionFields = {
   themeSchemaVersion?: number | null
   themeRevision?: number | null
   themeTokens?: Record<string, string | null | undefined> | null
+  themeAssets?: {
+    backgroundImage?: Track['artwork']
+    textureImage?: Track['artwork']
+    markImage?: Track['artwork']
+  } | null
+  themeOptions?: {
+    artworkTreatment?: string | null
+    typeTreatment?: string | null
+    surfaceTreatment?: string | null
+    motion?: string | null
+  } | null
+  signalCard?: { layout?: string | null; showArtwork?: boolean | null } | null
+  socialCard?: { layout?: string | null } | null
 }
 
 type ValueSplitWithFeedFields = ValueSplit
@@ -132,36 +146,15 @@ const optionalTag = (name: string, value: string): string => (value ? `    <${na
 /**
  * MY RADIO presentation fields, carried as <podcast:txt purpose="myradio:…">.
  * podcast:txt is the spec's free-form text slot; other clients ignore unknown purposes.
+ *
+ * Theme-config serialization itself (tokens/assets/options/signalCard/socialCard,
+ * versioned, allowlisted, size-bounded) lives in src/lib/release-theme.ts —
+ * buildThemeConfigPayload — shared with the checksum-pinned JSON Schema in
+ * src/schemas/release-theme.schema.json. This function only resolves the Media
+ * relationships to absolute URLs (feed-builder's own job, everywhere else in this
+ * file) before handing off to that shared, validated builder.
  */
-const MAX_THEME_CONFIG_JSON_LENGTH = 4000
-
-/**
- * Serializes only the token/version fields the shared release-theme schema
- * (src/schemas/release-theme.schema.json) actually defines — never arbitrary CSS,
- * HTML, or JS, and capped in size per EO §7.8.
- */
-const themeConfigJson = (theme: ThemeExtensionFields | null | undefined): string | null => {
-  if (!theme?.themeSchemaVersion) return null
-
-  const tokens = theme.themeTokens ?? {}
-  const nonEmptyTokens = Object.fromEntries(
-    Object.entries(tokens).filter(([, value]) => typeof value === 'string' && value.trim() !== ''),
-  )
-
-  const payload = {
-    themeSchemaVersion: theme.themeSchemaVersion,
-    ...nonEmptyTokens,
-  }
-
-  const json = JSON.stringify(payload)
-  if (json.length > MAX_THEME_CONFIG_JSON_LENGTH) {
-    console.warn(`[feed-builder] myradio:theme-config exceeds ${MAX_THEME_CONFIG_JSON_LENGTH} chars; omitting from feed.`)
-    return null
-  }
-  return json
-}
-
-const myRadioTxtTags = (release: ReleaseWithFeedFields): string => {
+const myRadioTxtTags = (release: ReleaseWithFeedFields, baseUrl: string): string => {
   const m = release.myradio as (typeof release.myradio & ThemeExtensionFields) | null | undefined
   const d = (release as ReleaseWithFeedFields & { distribution?: DistributionFields | null }).distribution
   if (!m && !d) return ''
@@ -180,7 +173,21 @@ const myRadioTxtTags = (release: ReleaseWithFeedFields): string => {
       (m.terrestrialHandoff ? tag('terrestrialHandoff', 'true') : '')
     : ''
 
-  const themeConfig = m ? themeConfigJson(m) : null
+  const themeConfigResult = m
+    ? buildThemeConfigPayload({
+        themeSchemaVersion: m.themeSchemaVersion,
+        themeTokens: m.themeTokens,
+        themeAssets: {
+          backgroundImage: mediaUrl(m.themeAssets?.backgroundImage, baseUrl) || null,
+          textureImage: mediaUrl(m.themeAssets?.textureImage, baseUrl) || null,
+          markImage: mediaUrl(m.themeAssets?.markImage, baseUrl) || null,
+        },
+        themeOptions: m.themeOptions,
+        signalCard: m.signalCard,
+        socialCard: m.socialCard,
+      })
+    : null
+  const themeConfig = themeConfigResult?.json ?? null
 
   const signalCard = d
     ? tag('release-lane', d.releaseLane) +
@@ -401,7 +408,7 @@ export const buildReleaseFeedXml = ({
       ? `    <podcast:socialInteract platform="nostr" url="${xmlAttr(resolveAbsoluteUrl(release.socialUrl, normalizedBaseUrl))}" />\n`
       : '') +
     (release.upc ? `    <podcast:txt purpose="upc">${xmlText(release.upc)}</podcast:txt>\n` : '') +
-    myRadioTxtTags(release) +
+    myRadioTxtTags(release, normalizedBaseUrl) +
     (coverImageUrl ? `    <itunes:image href="${xmlAttr(coverImageUrl)}" />\n` : '') +
     (coverImageUrl
       ? '    <image>\n' +
