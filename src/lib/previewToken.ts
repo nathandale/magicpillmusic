@@ -8,10 +8,10 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
  * admin session/cookie — fine for a human editor previewing a page in a browser, but
  * unusable for a feed URL a machine (MYRADIO, or a publisher validating a draft) needs
  * to fetch directly. These tokens are self-contained, signed, expiring, and scoped to
- * exactly one release, so the preview route needs no session at all — and per EO §7.7
- * they must never grant access to the Payload Admin API, never appear in analytics,
- * canonical URLs, or logs, and must be redacted by any analytics URL sanitizer that
- * later reads a referrer containing one.
+ * exactly one release, so the preview route needs no session at all. The token is
+ * accepted only as an Authorization Bearer credential — never in a query string —
+ * so it does not enter request-target logs, analytics URLs, canonical URLs, copied
+ * links, or referrers.
  */
 const DEFAULT_TTL_SECONDS = 600 // 10 minutes
 

@@ -1,50 +1,57 @@
-import { isIP } from 'node:net'
 import { lookup as dnsLookup } from 'node:dns/promises'
+import { request as httpRequest } from 'node:http'
+import { request as httpsRequest } from 'node:https'
+import { isIP } from 'node:net'
 
 /**
- * Bounded, SSRF-safe reachability probe for a track's audio URL (EO §7.6 condition
- * 6/7). This makes an outbound network request from the DEMU server, so the usual
- * SSRF rules apply: an attacker who can set `audioUrl` must not be able to make this
- * server probe its own loopback/private network, cloud metadata endpoints, or
- * anything not genuinely a public audio origin.
+ * Bounded, SSRF-safe reachability probe for a track's audio URL.
  *
- * Rules:
- * - only http/https;
- * - every hostname in the URL, and every redirect target, is resolved and the
- *   resolved IP is checked against loopback/private/link-local/multicast/metadata
- *   ranges before any request is made to it;
- * - redirects are followed manually (fetch's automatic redirect follow does not let
- *   us re-validate each hop), capped, and re-validated at every hop;
- * - a short connect/total timeout and a small response-body cap, since this only
- *   needs headers (HEAD) or the first bytes (ranged GET fallback), never the whole
- *   file;
- * - failures are reported as a reason string, never thrown, so a validation hook can
- *   turn them into a clear user-facing message.
+ * DNS validation alone is insufficient: resolving a hostname, checking the answer,
+ * and then calling fetch() permits DNS rebinding because fetch performs a second,
+ * independent lookup. This implementation resolves once, rejects the hostname if
+ * any answer is unsafe, and pins the actual HTTP(S) socket lookup to one of those
+ * already-approved addresses. Every redirect repeats that process for its new host.
  */
 
 const MAX_REDIRECTS = 3
 const TIMEOUT_MS = 4000
-const MAX_PROBE_BYTES = 1024 // only used for the ranged-GET fallback
+const MAX_PROBE_BYTES = 1024
 
 export type AudioProbeResult =
   | { ok: true; status: number; contentType: string | null; contentLength: number | null }
   | { ok: false; reason: string }
 
+type ResolvedAddress = { address: string; family: number }
+type LookupAll = (hostname: string) => Promise<ResolvedAddress[]>
+type ProbeMethod = 'HEAD' | 'GET'
+type PinnedResponse = {
+  status: number
+  contentType: string | null
+  contentLength: number | null
+  location: string | null
+}
+type PinnedRequest = (url: URL, address: ResolvedAddress, method: ProbeMethod) => Promise<PinnedResponse>
+
+export type AudioProbeDependencies = {
+  lookup?: LookupAll
+  request?: PinnedRequest
+}
+
 const BLOCKED_V4_RANGES: [string, number][] = [
   ['0.0.0.0', 8],
   ['10.0.0.0', 8],
-  ['100.64.0.0', 10], // carrier-grade NAT
-  ['127.0.0.0', 8], // loopback
-  ['169.254.0.0', 16], // link-local — includes 169.254.169.254 cloud metadata
+  ['100.64.0.0', 10],
+  ['127.0.0.0', 8],
+  ['169.254.0.0', 16],
   ['172.16.0.0', 12],
   ['192.0.0.0', 24],
-  ['192.0.2.0', 24], // TEST-NET-1
+  ['192.0.2.0', 24],
   ['192.168.0.0', 16],
   ['198.18.0.0', 15],
-  ['198.51.100.0', 24], // TEST-NET-2
-  ['203.0.113.0', 24], // TEST-NET-3
-  ['224.0.0.0', 4], // multicast
-  ['240.0.0.0', 4], // reserved
+  ['198.51.100.0', 24],
+  ['203.0.113.0', 24],
+  ['224.0.0.0', 4],
+  ['240.0.0.0', 4],
 ]
 
 const ipToInt = (ip: string): number =>
@@ -60,15 +67,15 @@ const isBlockedV4 = (ip: string): boolean => {
 
 const isBlockedV6 = (ip: string): boolean => {
   const lower = ip.toLowerCase()
-  if (lower === '::1') return true // loopback
+  if (lower === '::' || lower === '::1') return true
   if (lower.startsWith('::ffff:')) {
-    // IPv4-mapped IPv6 — check the embedded v4 address too
-    const v4 = lower.split(':').pop()
-    if (v4 && isIP(v4) === 4) return isBlockedV4(v4)
+    const mapped = lower.slice('::ffff:'.length)
+    if (isIP(mapped) === 4) return isBlockedV4(mapped)
+    return true
   }
-  if (lower.startsWith('fe80:') || lower.startsWith('fe8') || lower.startsWith('fe9') || lower.startsWith('fea') || lower.startsWith('feb')) return true // link-local
-  if (lower.startsWith('fc') || lower.startsWith('fd')) return true // unique local
-  if (lower.startsWith('ff')) return true // multicast
+  if (/^fe[89ab]/.test(lower)) return true
+  if (lower.startsWith('fc') || lower.startsWith('fd')) return true
+  if (lower.startsWith('ff')) return true
   return false
 }
 
@@ -76,54 +83,112 @@ const isBlockedIp = (ip: string): boolean => {
   const version = isIP(ip)
   if (version === 4) return isBlockedV4(ip)
   if (version === 6) return isBlockedV6(ip)
-  return true // unrecognized — fail closed
+  return true
 }
 
-/** Resolves a hostname and rejects if ANY resolved address is in a blocked range. */
-const assertHostnameIsSafe = async (hostname: string): Promise<void> => {
-  // A literal IP in the URL — check it directly, no DNS needed.
-  if (isIP(hostname)) {
-    if (isBlockedIp(hostname)) {
-      throw new Error(`resolves to a blocked address (${hostname})`)
+const defaultLookup: LookupAll = async (hostname) => {
+  const addresses = await dnsLookup(hostname, { all: true, verbatim: true })
+  return addresses.map(({ address, family }) => ({ address, family }))
+}
+
+const normalizeHostname = (hostname: string): string =>
+  hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
+
+const resolveSafeAddresses = async (hostname: string, lookup: LookupAll): Promise<ResolvedAddress[]> => {
+  const normalized = normalizeHostname(hostname)
+  const literalFamily = isIP(normalized)
+  let addresses: ResolvedAddress[]
+
+  if (literalFamily) {
+    addresses = [{ address: normalized, family: literalFamily }]
+  } else {
+    try {
+      addresses = await lookup(normalized)
+    } catch {
+      throw new Error('hostname could not be resolved')
     }
-    return
   }
 
-  let addresses: { address: string }[]
-  try {
-    addresses = await dnsLookup(hostname, { all: true })
-  } catch {
-    throw new Error('hostname could not be resolved')
-  }
-
-  if (addresses.length === 0) {
-    throw new Error('hostname resolved to no addresses')
-  }
-
+  if (addresses.length === 0) throw new Error('hostname resolved to no addresses')
   for (const { address } of addresses) {
-    if (isBlockedIp(address)) {
-      throw new Error(`resolves to a blocked address (${address})`)
-    }
+    if (isBlockedIp(address)) throw new Error(`resolves to a blocked address (${address})`)
   }
+  return addresses
 }
 
-const assertUrlIsSafe = async (url: URL): Promise<void> => {
+const assertUrlIsSafe = async (url: URL, lookup: LookupAll): Promise<ResolvedAddress[]> => {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new Error(`unsupported protocol "${url.protocol}"`)
   }
-  if (url.username || url.password) {
-    throw new Error('credentials in URL are not allowed')
-  }
-  await assertHostnameIsSafe(url.hostname)
+  if (url.username || url.password) throw new Error('credentials in URL are not allowed')
+  return resolveSafeAddresses(url.hostname, lookup)
 }
 
-/**
- * Bounded probe: tries HEAD first (cheapest), falls back to a ranged GET (bytes
- * 0-1023) for origins that reject HEAD (common for some static/CDN configs). Follows
- * redirects manually, re-validating SSRF safety at every hop, capped at
- * MAX_REDIRECTS.
- */
-export const probeAudioUrl = async (rawUrl: string): Promise<AudioProbeResult> => {
+const requestPinned: PinnedRequest = (url, address, method) =>
+  new Promise((resolve, reject) => {
+    const requestImpl = url.protocol === 'https:' ? httpsRequest : httpRequest
+    const headers = method === 'GET' ? { Range: `bytes=0-${MAX_PROBE_BYTES - 1}` } : undefined
+    const lookup = (
+      _hostname: string,
+      _options: unknown,
+      callback: (error: NodeJS.ErrnoException | null, address: string, family: number) => void,
+    ) => callback(null, address.address, address.family)
+
+    const request = requestImpl(
+      url,
+      {
+        method,
+        headers,
+        lookup,
+        ...(url.protocol === 'https:' ? { servername: normalizeHostname(url.hostname) } : {}),
+      },
+      (response) => {
+        const contentLengthHeader = response.headers['content-length']
+        const parsedLength = contentLengthHeader ? Number(contentLengthHeader) : null
+        const result: PinnedResponse = {
+          status: response.statusCode ?? 0,
+          contentType: response.headers['content-type'] ?? null,
+          contentLength: Number.isFinite(parsedLength) ? parsedLength : null,
+          location: response.headers.location ?? null,
+        }
+
+        // Never consume the media. Destroying immediately after headers bounds the
+        // fallback even when a hostile origin ignores the Range request.
+        response.destroy()
+        resolve(result)
+      },
+    )
+
+    request.setTimeout(TIMEOUT_MS, () => {
+      const error = new Error(`timed out after ${TIMEOUT_MS}ms`)
+      error.name = 'AbortError'
+      request.destroy(error)
+    })
+    request.once('error', reject)
+    request.end()
+  })
+
+const performProbe = async (
+  url: URL,
+  address: ResolvedAddress,
+  request: PinnedRequest,
+): Promise<PinnedResponse> => {
+  try {
+    const head = await request(url, address, 'HEAD')
+    if (head.status !== 405 && head.status !== 501) return head
+  } catch {
+    // Network-level HEAD failures get the same bounded GET fallback as explicit
+    // method-not-supported responses.
+  }
+  return request(url, address, 'GET')
+}
+
+export const probeAudioUrl = async (
+  rawUrl: string,
+  dependencies: AudioProbeDependencies = {},
+): Promise<AudioProbeResult> => {
+  const lookup = dependencies.lookup ?? defaultLookup
+  const request = dependencies.request ?? requestPinned
   let currentUrl: URL
   try {
     currentUrl = new URL(rawUrl)
@@ -132,68 +197,39 @@ export const probeAudioUrl = async (rawUrl: string): Promise<AudioProbeResult> =
   }
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    let addresses: ResolvedAddress[]
     try {
-      await assertUrlIsSafe(currentUrl)
-    } catch (err) {
-      return { ok: false, reason: `blocked: ${err instanceof Error ? err.message : 'unsafe URL'}` }
+      addresses = await assertUrlIsSafe(currentUrl, lookup)
+    } catch (error) {
+      return { ok: false, reason: `blocked: ${error instanceof Error ? error.message : 'unsafe URL'}` }
     }
 
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
-
     try {
-      let response: Response
-      try {
-        response = await fetch(currentUrl, {
-          method: 'HEAD',
-          redirect: 'manual',
-          signal: controller.signal,
-        })
-      } catch {
-        // Some origins reject HEAD outright (network-level) — fall back to a
-        // small ranged GET on the same URL before giving up on this hop.
-        response = await fetch(currentUrl, {
-          method: 'GET',
-          redirect: 'manual',
-          headers: { Range: `bytes=0-${MAX_PROBE_BYTES - 1}` },
-          signal: controller.signal,
-        })
-      }
+      const response = await performProbe(currentUrl, addresses[0], request)
 
       if (response.status >= 300 && response.status < 400) {
-        const location = response.headers.get('location')
-        if (!location) {
-          return { ok: false, reason: `redirect (${response.status}) with no Location header` }
-        }
-        if (hop === MAX_REDIRECTS) {
-          return { ok: false, reason: 'too many redirects' }
-        }
+        if (!response.location) return { ok: false, reason: `redirect (${response.status}) with no Location header` }
+        if (hop === MAX_REDIRECTS) return { ok: false, reason: 'too many redirects' }
         try {
-          currentUrl = new URL(location, currentUrl)
+          currentUrl = new URL(response.location, currentUrl)
         } catch {
           return { ok: false, reason: 'redirect target is not a well-formed URL' }
         }
-        continue // re-validate the new hop at the top of the loop
+        continue
       }
 
-      if (!response.ok && response.status !== 206) {
+      if (response.status < 200 || response.status >= 300) {
         return { ok: false, reason: `unexpected status ${response.status}` }
       }
 
-      const contentLength = response.headers.get('content-length')
       return {
         ok: true,
         status: response.status,
-        contentType: response.headers.get('content-type'),
-        contentLength: contentLength ? Number(contentLength) : null,
+        contentType: response.contentType,
+        contentLength: response.contentLength,
       }
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        return { ok: false, reason: `timed out after ${TIMEOUT_MS}ms` }
-      }
-      return { ok: false, reason: err instanceof Error ? err.message : 'request failed' }
-    } finally {
-      clearTimeout(timer)
+    } catch (error) {
+      return { ok: false, reason: error instanceof Error ? error.message : 'request failed' }
     }
   }
 

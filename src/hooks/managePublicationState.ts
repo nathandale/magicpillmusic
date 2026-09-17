@@ -1,4 +1,9 @@
-import type { CollectionAfterChangeHook, CollectionAfterDeleteHook, CollectionBeforeChangeHook } from 'payload'
+import type {
+  CollectionAfterChangeHook,
+  CollectionAfterDeleteHook,
+  CollectionBeforeChangeHook,
+  CollectionBeforeDeleteHook,
+} from 'payload'
 
 import { deepMerge } from '../lib/deepMerge'
 import type { ReleaseWorkflowState } from '../access/workflowTransitions'
@@ -7,6 +12,44 @@ const relId = (value: unknown): unknown =>
   value && typeof value === 'object' && 'id' in (value as Record<string, unknown>)
     ? (value as Record<string, unknown>).id
     : value
+
+const canonicalize = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(canonicalize)
+  if (!value || typeof value !== 'object') return value
+
+  const record = value as Record<string, unknown>
+  if ('id' in record && (typeof record.id === 'string' || typeof record.id === 'number')) return record.id
+
+  return Object.fromEntries(
+    Object.entries(record)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, child]) => [key, canonicalize(child)]),
+  )
+}
+
+const releasePublicationSnapshot = (release: Record<string, unknown>): string => {
+  const copy = structuredClone(release)
+  for (const key of [
+    'id',
+    'createdAt',
+    'updatedAt',
+    '_status',
+    'status',
+    'workflowState',
+    'releaseGuid',
+    'previewAttestation',
+    'analyticsVerification',
+  ]) {
+    delete copy[key]
+  }
+
+  const myradio = copy.myradio as Record<string, unknown> | undefined
+  if (myradio) delete myradio.themeRevision
+  const distribution = copy.distribution as Record<string, unknown> | undefined
+  if (distribution) delete distribution.publicVisibility
+
+  return JSON.stringify(canonicalize(copy))
+}
 
 type MyRadioGroup = {
   theme?: string | null
@@ -25,6 +68,19 @@ const EMPTY_ATTESTATION = {
   trackFingerprintAt: null,
   playerVersionAt: null,
   schemaVersionAt: null,
+}
+
+const EMPTY_ANALYTICS_VERIFICATION = {
+  latest: null,
+  summary: {
+    verifiedAt: null,
+    verifiedBy: null,
+    environment: null,
+    schemaVersion: null,
+    playerVersion: null,
+    themeVersion: null,
+    sampleEventIds: [],
+  },
 }
 
 /** Identity snapshot of everything that makes a Signal Card visually "this release" — used to decide whether `themeRevision` must bump. */
@@ -62,13 +118,36 @@ const themeIdentitySnapshot = (m: MyRadioGroup | null | undefined): string =>
  *    side invalidation (audio/duration/order changes) is handled separately by the
  *    Tracks hooks below, which reach into the parent Release.
  */
-export const manageReleaseServerFields: CollectionBeforeChangeHook = async ({ data, originalDoc, operation }) => {
+export const manageReleaseServerFields: CollectionBeforeChangeHook = async ({ data, originalDoc, operation, context }) => {
   if (!data) return data
 
   const nextWorkflowState =
     (data.workflowState as ReleaseWorkflowState | undefined) ??
     (originalDoc?.workflowState as ReleaseWorkflowState | undefined) ??
     'draft'
+
+  // A passing gate applies to one exact public document. Once a release is public,
+  // accepting content/configuration edits while leaving workflowState="published"
+  // would expose unpreviewed and unverified bytes without another transition through
+  // the gate. Require an explicit move back to an editable state first. Trusted
+  // server-only bookkeeping (receipt pointer/summary writes) is excluded and cannot
+  // alter public presentation or media fields.
+  if (
+    operation === 'update' &&
+    originalDoc?.workflowState === 'published' &&
+    nextWorkflowState === 'published' &&
+    context?.skipPublicationStateManagement !== true
+  ) {
+    const merged = deepMerge(
+      originalDoc as Record<string, unknown>,
+      data as Record<string, unknown>,
+    )
+    if (releasePublicationSnapshot(originalDoc as Record<string, unknown>) !== releasePublicationSnapshot(merged)) {
+      throw new Error(
+        'This release is published. Move workflowState out of "published" before editing release content, distribution, analytics schema, or presentation fields; then re-run preview and analytics verification before publishing again.',
+      )
+    }
+  }
 
   // --- 1. Derive status/publicVisibility from workflowState alone ---
   data.status = nextWorkflowState === 'published' ? 'published' : 'draft'
@@ -81,6 +160,16 @@ export const manageReleaseServerFields: CollectionBeforeChangeHook = async ({ da
     nextWorkflowState === 'published' ? 'public' : nextWorkflowState === 'archived' ? 'archived' : 'preview'
 
   data.distribution = { ...mergedDistribution, publicVisibility: derivedVisibility }
+
+  const analyticsSchemaChanged =
+    operation === 'update' &&
+    incomingDistribution.analyticsSchemaVersion !== undefined &&
+    incomingDistribution.analyticsSchemaVersion !== originalDistribution.analyticsSchemaVersion
+
+  if (analyticsSchemaChanged) {
+    data.previewAttestation = { ...EMPTY_ATTESTATION }
+    data.analyticsVerification = structuredClone(EMPTY_ANALYTICS_VERIFICATION)
+  }
 
   // --- 2. themeRevision + previewAttestation invalidation ---
   const originalMyradio = (originalDoc?.myradio as MyRadioGroup | null) ?? null
@@ -96,6 +185,7 @@ export const manageReleaseServerFields: CollectionBeforeChangeHook = async ({ da
       const nextRevision = ((originalMyradio?.themeRevision as number | undefined) ?? 0) + 1
       data.myradio = { ...mergedMyradio, themeRevision: nextRevision }
       data.previewAttestation = { ...EMPTY_ATTESTATION }
+      data.analyticsVerification = structuredClone(EMPTY_ANALYTICS_VERIFICATION)
     } else {
       // themeRevision itself is server-controlled (its own field access already
       // blocks a direct client write) — this just makes sure the merged group we
@@ -135,6 +225,69 @@ const trackPreviewSnapshot = (t: TrackPreviewFields | null | undefined): string 
     audioFile: relId(t?.audioFile) ?? null,
   })
 
+const trackMutationSnapshot = (track: Record<string, unknown>): string => {
+  const copy = structuredClone(track)
+  for (const key of ['id', 'createdAt', 'updatedAt', 'guid', 'shareId', 'rightsConfirmedAt', 'rightsConfirmedBy']) {
+    delete copy[key]
+  }
+  return JSON.stringify(canonicalize(copy))
+}
+
+const parentReleaseIsPublished = async (
+  releaseRef: unknown,
+  req: import('payload').PayloadRequest,
+): Promise<boolean> => {
+  const releaseId = relId(releaseRef)
+  if (releaseId === undefined || releaseId === null) return false
+  const release = await req.payload.findByID({
+    collection: 'releases',
+    id: releaseId as string | number,
+    depth: 0,
+    req,
+  })
+  return release.workflowState === 'published'
+}
+
+/** A public release must be moved back to an editable workflow state before any child Track is created or changed. */
+export const protectPublishedReleaseTrackMutation: CollectionBeforeChangeHook = async ({
+  data,
+  originalDoc,
+  operation,
+  req,
+  context,
+}) => {
+  if (context?.skipPublicationStateManagement) return data
+
+  const releaseRef = data?.release ?? originalDoc?.release
+  if (!(await parentReleaseIsPublished(releaseRef, req))) return data
+
+  const changed =
+    operation === 'create' ||
+    trackMutationSnapshot((originalDoc ?? {}) as Record<string, unknown>) !==
+      trackMutationSnapshot(
+        deepMerge(
+          (originalDoc ?? {}) as Record<string, unknown>,
+          (data ?? {}) as Record<string, unknown>,
+        ),
+      )
+
+  if (changed) {
+    throw new Error(
+      'The parent release is published. Move the release workflowState out of "published" before creating or editing tracks; the release must be previewed and verified again before republishing.',
+    )
+  }
+  return data
+}
+
+export const protectPublishedReleaseTrackDelete: CollectionBeforeDeleteHook = async ({ id, req }) => {
+  const track = await req.payload.findByID({ collection: 'tracks', id, depth: 0, req })
+  if (await parentReleaseIsPublished(track.release, req)) {
+    throw new Error(
+      'The parent release is published. Move the release workflowState out of "published" before deleting tracks.',
+    )
+  }
+}
+
 const clearParentReleaseAttestation = async (
   releaseRef: unknown,
   payload: import('payload').Payload,
@@ -143,19 +296,21 @@ const clearParentReleaseAttestation = async (
   const releaseId = relId(releaseRef)
   if (releaseId === undefined || releaseId === null) return
 
-  await payload
-    .update({
-      collection: 'releases',
-      id: releaseId as string | number,
-      data: { previewAttestation: { ...EMPTY_ATTESTATION } },
-      req,
-      context: { skipPublicationStateManagement: true },
-      depth: 0,
-    })
-    .catch(() => {
-      // Best-effort: if the parent release was deleted concurrently, or the
-      // update races a delete, there is nothing left to invalidate.
-    })
+  // This is deliberately fail-closed. A permissions, transaction, or database
+  // failure must abort the originating Track mutation rather than leave a stale
+  // attestation attached. Deleting a Track whose parent was concurrently removed is
+  // also safe to fail/retry; silently guessing "not found" here is not.
+  await payload.update({
+    collection: 'releases',
+    id: releaseId as string | number,
+    data: {
+      previewAttestation: { ...EMPTY_ATTESTATION },
+      analyticsVerification: structuredClone(EMPTY_ANALYTICS_VERIFICATION),
+    },
+    req,
+    context: { skipPublicationStateManagement: true },
+    depth: 0,
+  })
 }
 
 export const invalidateReleasePreviewOnTrackChange: CollectionAfterChangeHook = async ({

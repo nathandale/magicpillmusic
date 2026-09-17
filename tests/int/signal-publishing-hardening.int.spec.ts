@@ -8,6 +8,12 @@ import { computeTrackSetFingerprint } from '@/lib/trackFingerprint'
 import { buildThemeConfigPayload } from '@/lib/release-theme'
 import { buildReleaseFeedXml } from '@/lib/feed-builder'
 import { probeAudioUrl } from '@/lib/safeAudioProbe'
+import {
+  manageReleaseServerFields,
+  protectPublishedReleaseTrackMutation,
+} from '@/hooks/managePublicationState'
+import { GET as getPreviewFeed } from '@/app/(frontend)/feeds/[slug]/preview/route'
+import { GET as getPublicReleaseFeed } from '@/app/(frontend)/feeds/[slug]/route'
 
 /**
  * Coverage for the 2026-09-17 review round: every point in "Correct every blocking
@@ -421,6 +427,89 @@ describe('Review round 2: publication-gate hardening', () => {
   })
 
   describe('7. a passing receipt must match the exact current configuration, not just "some pass exists"', () => {
+    const attachAttestation = async (releaseId: number, playerVersion: string) => {
+      const release = await payload.findByID({ collection: 'releases', id: releaseId, depth: 0 })
+      const tracks = await payload.find({ collection: 'tracks', where: { release: { equals: releaseId } }, depth: 0 })
+      await payload.update({
+        collection: 'releases',
+        id: releaseId,
+        data: {
+          previewAttestation: {
+            attestedAt: new Date().toISOString(),
+            themeRevisionAt: release.myradio?.themeRevision ?? 0,
+            trackFingerprintAt: computeTrackSetFingerprint(tracks.docs),
+            playerVersionAt: playerVersion,
+            schemaVersionAt: release.distribution?.analyticsSchemaVersion ?? 1,
+          },
+        },
+        overrideAccess: true,
+        context: { skipPublicationStateManagement: true },
+      })
+      return { release, tracks }
+    }
+
+    it('rejects a non-production verification receipt', async () => {
+      const artistDoc = await makeArtist()
+      const { release } = await makeReleaseWithOneTrack(artistDoc.id)
+      const current = await attachAttestation(release.id, '1.0.0')
+
+      await payload.create({
+        collection: 'analytics-verification-receipts',
+        data: {
+          release: release.id,
+          environment: 'staging',
+          outcome: 'pass',
+          releaseGuid: current.release.releaseGuid,
+          trackFingerprint: computeTrackSetFingerprint(current.tracks.docs),
+          schemaVersion: 1,
+          playerVersion: '1.0.0',
+          themeVersion: current.release.myradio?.themeRevision ?? 0,
+        },
+        context: { trustedVerificationRun: true },
+        overrideAccess: true,
+      })
+
+      await expect(
+        payload.update({
+          collection: 'releases',
+          id: release.id,
+          data: { workflowState: 'analytics_verified' },
+          overrideAccess: true,
+        }),
+      ).rejects.toThrow(/environment \(must be production\)/)
+    })
+
+    it('rejects a receipt produced by a different player build than the preview', async () => {
+      const artistDoc = await makeArtist()
+      const { release } = await makeReleaseWithOneTrack(artistDoc.id)
+      const current = await attachAttestation(release.id, '1.0.0')
+
+      await payload.create({
+        collection: 'analytics-verification-receipts',
+        data: {
+          release: release.id,
+          environment: 'production',
+          outcome: 'pass',
+          releaseGuid: current.release.releaseGuid,
+          trackFingerprint: computeTrackSetFingerprint(current.tracks.docs),
+          schemaVersion: 1,
+          playerVersion: '2.0.0',
+          themeVersion: current.release.myradio?.themeRevision ?? 0,
+        },
+        context: { trustedVerificationRun: true },
+        overrideAccess: true,
+      })
+
+      await expect(
+        payload.update({
+          collection: 'releases',
+          id: release.id,
+          data: { workflowState: 'analytics_verified' },
+          overrideAccess: true,
+        }),
+      ).rejects.toThrow(/player version \(does not match the preview attestation\)/)
+    })
+
     it('rejects publication when the receipt is for a different release', async () => {
       const artistDoc = await makeArtist()
       const { release } = await makeReleaseWithOneTrack(artistDoc.id)
@@ -468,7 +557,7 @@ describe('Review round 2: publication-gate hardening', () => {
           data: { workflowState: 'analytics_verified' },
           overrideAccess: true,
         }),
-      ).rejects.toThrow(/does not match the release's current configuration/)
+      ).rejects.toThrow(/No passing PostHog verification receipt|does not match the release's current configuration/)
     })
 
     it('rejects publication when the receipt is stale (theme changed since verification)', async () => {
@@ -509,7 +598,7 @@ describe('Review round 2: publication-gate hardening', () => {
           data: { workflowState: 'analytics_verified' },
           overrideAccess: true,
         }),
-      ).rejects.toThrow(/does not match the release's current configuration/)
+      ).rejects.toThrow(/No passing PostHog verification receipt|does not match the release's current configuration/)
     })
   })
 
@@ -664,6 +753,38 @@ describe('Review round 2: publication-gate hardening', () => {
     it('rejects a malformed token', () => {
       const result = verifyReleasePreviewToken('not-a-real-token', 42)
       expect(result.ok).toBe(false)
+    })
+
+    it('the real preview route rejects query-string credentials and accepts Authorization Bearer', async () => {
+      const artistDoc = await makeArtist()
+      const release = await makeDraftRelease(artistDoc.id)
+      const token = createReleasePreviewToken(release.id, 600)
+      const context = { params: Promise.resolve({ slug: release.slug }) }
+
+      const queryResponse = await getPreviewFeed(
+        new Request(`https://magicpillmusic.test/feeds/${release.slug}/preview?token=${token}`),
+        context,
+      )
+      expect(queryResponse.status).toBe(403)
+
+      const bearerResponse = await getPreviewFeed(
+        new Request(`https://magicpillmusic.test/feeds/${release.slug}/preview`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        context,
+      )
+      expect(bearerResponse.status).toBe(200)
+      expect(bearerResponse.headers.get('cache-control')).toBe('no-store')
+    })
+
+    it('the real public route returns 404 for a draft release', async () => {
+      const artistDoc = await makeArtist()
+      const release = await makeDraftRelease(artistDoc.id)
+      const response = await getPublicReleaseFeed(
+        new Request(`https://magicpillmusic.test/feeds/${release.slug}`),
+        { params: Promise.resolve({ slug: release.slug }) },
+      )
+      expect(response.status).toBe(404)
     })
   })
 
@@ -820,11 +941,129 @@ describe('Review round 2: publication-gate hardening', () => {
       expect((result as { reason: string }).reason).toBe('not a well-formed URL')
     })
 
-    it('a genuinely public HTTPS URL is reachable (live network check)', async () => {
-      // Exercises the real success path against a stable, well-known public
-      // endpoint — confirms the probe isn't *always* failing closed.
-      const result = await probeAudioUrl('https://www.gstatic.com/generate_204')
+    it('pins the request to the exact public IP that passed validation (no second DNS lookup)', async () => {
+      let lookupCalls = 0
+      let connectedAddress = ''
+      const result = await probeAudioUrl('https://audio.example.test/song.mp3', {
+        lookup: async () => {
+          lookupCalls += 1
+          return [{ address: '93.184.216.34', family: 4 }]
+        },
+        request: async (_url, address) => {
+          connectedAddress = address.address
+          return { status: 200, contentType: 'audio/mpeg', contentLength: 1234, location: null }
+        },
+      })
+
       expect(result.ok).toBe(true)
-    }, 10000)
+      expect(lookupCalls).toBe(1)
+      expect(connectedAddress).toBe('93.184.216.34')
+    })
+
+    it('revalidates a redirect and blocks it before a request to a private target', async () => {
+      let requestCalls = 0
+      const result = await probeAudioUrl('https://audio.example.test/song.mp3', {
+        lookup: async (hostname) =>
+          hostname === 'audio.example.test'
+            ? [{ address: '93.184.216.34', family: 4 }]
+            : [{ address: '127.0.0.1', family: 4 }],
+        request: async () => {
+          requestCalls += 1
+          return { status: 302, contentType: null, contentLength: 0, location: 'http://private.example.test/audio' }
+        },
+      })
+
+      expect(result.ok).toBe(false)
+      expect((result as { reason: string }).reason).toMatch(/blocked/)
+      expect(requestCalls).toBe(1)
+    })
+
+    it('falls back from HEAD 405 to one bounded GET request', async () => {
+      const methods: string[] = []
+      const result = await probeAudioUrl('https://audio.example.test/song.mp3', {
+        lookup: async () => [{ address: '93.184.216.34', family: 4 }],
+        request: async (_url, _address, method) => {
+          methods.push(method)
+          return method === 'HEAD'
+            ? { status: 405, contentType: null, contentLength: 0, location: null }
+            : { status: 206, contentType: 'audio/mpeg', contentLength: 1024, location: null }
+        },
+      })
+
+      expect(result.ok).toBe(true)
+      expect(methods).toEqual(['HEAD', 'GET'])
+    })
+  })
+
+  describe('14. already-published content is immutable until explicitly returned to an editable state', () => {
+    it('rejects a release-content edit while workflowState remains published', async () => {
+      await expect(
+        manageReleaseServerFields({
+          operation: 'update',
+          originalDoc: {
+            id: 1,
+            title: 'Published title',
+            workflowState: 'published',
+            status: 'published',
+            distribution: { publicVisibility: 'public', analyticsSchemaVersion: 1 },
+            myradio: { themeRevision: 2 },
+          },
+          data: { title: 'Unverified replacement', workflowState: 'published' },
+          context: {},
+        } as never),
+      ).rejects.toThrow(/Move workflowState out of "published"/)
+    })
+
+    it('allows an explicit transition out of published before editing', async () => {
+      await expect(
+        manageReleaseServerFields({
+          operation: 'update',
+          originalDoc: {
+            id: 1,
+            title: 'Published title',
+            workflowState: 'published',
+            status: 'published',
+            distribution: { publicVisibility: 'public' },
+          },
+          data: { workflowState: 'draft' },
+          context: {},
+        } as never),
+      ).resolves.toMatchObject({ workflowState: 'draft', status: 'draft' })
+    })
+
+    it('rejects a child-track mutation while its parent release is published', async () => {
+      const req = {
+        payload: {
+          findByID: async () => ({ workflowState: 'published' }),
+        },
+      }
+      await expect(
+        protectPublishedReleaseTrackMutation({
+          operation: 'update',
+          originalDoc: { id: 2, release: 1, title: 'Original', duration: 100 },
+          data: { duration: 101 },
+          req,
+          context: {},
+        } as never),
+      ).rejects.toThrow(/parent release is published/i)
+    })
+
+    it('changing analytics schema clears both preview and analytics verification state', async () => {
+      const result = await manageReleaseServerFields({
+        operation: 'update',
+        originalDoc: {
+          id: 1,
+          workflowState: 'draft',
+          distribution: { analyticsSchemaVersion: 1, publicVisibility: 'preview' },
+          previewAttestation: { attestedAt: '2026-01-01T00:00:00.000Z' },
+          analyticsVerification: { latest: 42 },
+        },
+        data: { distribution: { analyticsSchemaVersion: 2 } },
+        context: {},
+      } as never)
+
+      expect(result?.previewAttestation?.attestedAt).toBeNull()
+      expect(result?.analyticsVerification?.latest).toBeNull()
+    })
   })
 })

@@ -357,14 +357,15 @@ const validateReleaseFinalTransition = async (
         mismatches.push('theme revision')
       }
       if (!isNonEmptyString(receipt.playerVersion)) {
-        // DEMU has no way to know MYRADIO's current live player version in
-        // Workstream 1A (there is no query path to it yet) — the strongest check
-        // available here is that a genuine verification run recorded *some*
-        // player version at all, not a specific expected value.
         mismatches.push('player version (not recorded on the receipt)')
+      } else if (receipt.playerVersion !== release.previewAttestation?.playerVersionAt) {
+        // Workstream 1A cannot independently query the currently deployed MYRADIO
+        // version, but it can and must prove the analytics run verified the exact
+        // same player build that produced the preview attestation.
+        mismatches.push('player version (does not match the preview attestation)')
       }
-      if (!isNonEmptyString(receipt.environment)) {
-        mismatches.push('environment (not recorded on the receipt)')
+      if (receipt.environment !== 'production') {
+        mismatches.push('environment (must be production)')
       }
 
       if (mismatches.length > 0) {
@@ -384,6 +385,9 @@ const validateReleaseFinalTransition = async (
   } else {
     const currentFingerprint = computeTrackSetFingerprint(tracks)
     const staleReasons: string[] = []
+    if (!isNonEmptyString(attestation.playerVersionAt)) {
+      staleReasons.push('the preview did not record a player version')
+    }
     if (attestation?.themeRevisionAt !== release.myradio?.themeRevision) {
       staleReasons.push('theme has changed since the preview was run')
     }

@@ -25,8 +25,12 @@ type RouteContext = {
  */
 export const GET = async (request: Request, context: RouteContext) => {
   const { slug } = await context.params
-  const { searchParams } = new URL(request.url)
-  const token = searchParams.get('token')
+  // Preview credentials belong in a header, never the URL. Reverse proxies and
+  // application access logs commonly record query strings; Authorization headers
+  // are not part of the request target and are not emitted into referrers, canonical
+  // URLs, or copied links.
+  const authorization = request.headers.get('authorization')
+  const token = authorization?.startsWith('Bearer ') ? authorization.slice('Bearer '.length).trim() : null
 
   const payload = await getPayload({ config: configPromise })
 

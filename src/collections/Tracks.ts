@@ -13,7 +13,12 @@ import { GENRE_OPTIONS } from './Releases'
 import type { User } from '@/payload-types'
 import { fundingLinksField } from '../fields/fundingLinks'
 import { validateTrackReadinessTransition } from '../hooks/validatePublishTransition'
-import { invalidateReleasePreviewOnTrackChange, invalidateReleasePreviewOnTrackDelete } from '../hooks/managePublicationState'
+import {
+  invalidateReleasePreviewOnTrackChange,
+  invalidateReleasePreviewOnTrackDelete,
+  protectPublishedReleaseTrackDelete,
+  protectPublishedReleaseTrackMutation,
+} from '../hooks/managePublicationState'
 
 export const Tracks: CollectionConfig = {
   slug: 'tracks',
@@ -310,6 +315,7 @@ export const Tracks: CollectionConfig = {
   ],
   hooks: {
     beforeChange: [
+      protectPublishedReleaseTrackMutation,
       ({ data, operation, req, originalDoc }) => {
         if (operation === 'create' && !data?.guid) {
           data!.guid = `mpm-track-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -334,6 +340,7 @@ export const Tracks: CollectionConfig = {
     // track-set fingerprint, which only these hooks (not Releases' own) can see
     // changing. See src/hooks/managePublicationState.ts.
     afterChange: [invalidateReleasePreviewOnTrackChange],
+    beforeDelete: [protectPublishedReleaseTrackDelete],
     afterDelete: [invalidateReleasePreviewOnTrackDelete],
   },
 }
