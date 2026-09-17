@@ -99,3 +99,111 @@ export const collectValidReleaseThemeTokens = (
 
   return { valid, invalidKeys }
 }
+
+// ---------------------------------------------------------------------------
+// Full theme-config feed contract — tokens + assets + options + signalCard +
+// socialCard, transported to MYRADIO as the single `myradio:theme-config`
+// podcast:txt value (JSON, CDATA-wrapped). Versioned by themeSchemaVersion,
+// validated field-by-field against explicit allowlists (never arbitrary CSS/
+// HTML/JS/URLs), and size-bounded. See src/schemas/release-theme.schema.json for
+// the corresponding JSON Schema and its checksum test.
+// ---------------------------------------------------------------------------
+
+export const ARTWORK_TREATMENT_VALUES = ['full', 'crop', 'framed'] as const
+export const TYPE_TREATMENT_VALUES = ['default', 'display', 'mono'] as const
+export const SURFACE_TREATMENT_VALUES = ['solid', 'gradient', 'image', 'image-gradient'] as const
+export const THEME_MOTION_VALUES = ['none', 'subtle'] as const
+export const SIGNAL_CARD_LAYOUT_VALUES = ['standard', 'broadcast', 'archival', 'minimal'] as const
+export const SOCIAL_CARD_LAYOUT_VALUES = ['standard', 'minimal'] as const
+
+const MAX_THEME_CONFIG_JSON_LENGTH = 6000
+const MAX_ASSET_URL_LENGTH = 2000
+
+export type ThemeConfigAssetsInput = {
+  backgroundImage?: string | null
+  textureImage?: string | null
+  markImage?: string | null
+}
+
+export type ThemeConfigOptionsInput = {
+  artworkTreatment?: string | null
+  typeTreatment?: string | null
+  surfaceTreatment?: string | null
+  motion?: string | null
+}
+
+export type ThemeConfigInput = {
+  themeSchemaVersion?: number | null
+  themeTokens?: ReleaseThemeTokens | null
+  themeAssets?: ThemeConfigAssetsInput | null
+  themeOptions?: ThemeConfigOptionsInput | null
+  signalCard?: { layout?: string | null; showArtwork?: boolean | null } | null
+  socialCard?: { layout?: string | null } | null
+}
+
+const allowlistedEnum = <T extends string>(
+  value: string | null | undefined,
+  allowed: readonly T[],
+): T | undefined => (value && (allowed as readonly string[]).includes(value) ? (value as T) : undefined)
+
+const isBoundedHttpUrl = (value: string | null | undefined): value is string =>
+  typeof value === 'string' &&
+  value.length > 0 &&
+  value.length <= MAX_ASSET_URL_LENGTH &&
+  (value.startsWith('https://') || value.startsWith('http://'))
+
+/**
+ * Builds the bounded, versioned theme-config object actually sent to MYRADIO.
+ * Every field is independently allowlisted/validated — nothing here is passed
+ * through from raw admin input unchecked. Returns `null` if the result would
+ * exceed the size budget (a corrupt/oversized config is omitted from the feed
+ * entirely, which forces a client to fall back to the named preset, rather than
+ * ever emitting a truncated or partially-valid document).
+ *
+ * Asset fields take already-resolved absolute URLs (the caller resolves Payload
+ * Media relationships to URLs) — this module has no dependency on Payload's Media
+ * collection shape.
+ */
+export const buildThemeConfigPayload = (
+  input: ThemeConfigInput,
+): { json: string; value: Record<string, unknown> } | null => {
+  if (!input.themeSchemaVersion) return null
+
+  const { valid: tokens } = collectValidReleaseThemeTokens(input.themeTokens ?? {})
+
+  const assets: Record<string, string> = {}
+  if (isBoundedHttpUrl(input.themeAssets?.backgroundImage)) assets.backgroundImage = input.themeAssets!.backgroundImage as string
+  if (isBoundedHttpUrl(input.themeAssets?.textureImage)) assets.textureImage = input.themeAssets!.textureImage as string
+  if (isBoundedHttpUrl(input.themeAssets?.markImage)) assets.markImage = input.themeAssets!.markImage as string
+
+  const options: Record<string, string> = {}
+  const artworkTreatment = allowlistedEnum(input.themeOptions?.artworkTreatment, ARTWORK_TREATMENT_VALUES)
+  const typeTreatment = allowlistedEnum(input.themeOptions?.typeTreatment, TYPE_TREATMENT_VALUES)
+  const surfaceTreatment = allowlistedEnum(input.themeOptions?.surfaceTreatment, SURFACE_TREATMENT_VALUES)
+  const motion = allowlistedEnum(input.themeOptions?.motion, THEME_MOTION_VALUES)
+  if (artworkTreatment) options.artworkTreatment = artworkTreatment
+  if (typeTreatment) options.typeTreatment = typeTreatment
+  if (surfaceTreatment) options.surfaceTreatment = surfaceTreatment
+  if (motion) options.motion = motion
+
+  const signalCard: Record<string, unknown> = {}
+  const signalCardLayout = allowlistedEnum(input.signalCard?.layout, SIGNAL_CARD_LAYOUT_VALUES)
+  if (signalCardLayout) signalCard.layout = signalCardLayout
+  if (typeof input.signalCard?.showArtwork === 'boolean') signalCard.showArtwork = input.signalCard.showArtwork
+
+  const socialCard: Record<string, unknown> = {}
+  const socialCardLayout = allowlistedEnum(input.socialCard?.layout, SOCIAL_CARD_LAYOUT_VALUES)
+  if (socialCardLayout) socialCard.layout = socialCardLayout
+
+  const value: Record<string, unknown> = { themeSchemaVersion: input.themeSchemaVersion }
+  if (Object.keys(tokens).length > 0) value.tokens = tokens
+  if (Object.keys(assets).length > 0) value.assets = assets
+  if (Object.keys(options).length > 0) value.options = options
+  if (Object.keys(signalCard).length > 0) value.signalCard = signalCard
+  if (Object.keys(socialCard).length > 0) value.socialCard = socialCard
+
+  const json = JSON.stringify(value)
+  if (json.length > MAX_THEME_CONFIG_JSON_LENGTH) return null
+
+  return { json, value }
+}

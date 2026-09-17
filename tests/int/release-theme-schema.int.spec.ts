@@ -7,10 +7,11 @@ import { describe, expect, it } from 'vitest'
 
 /**
  * The release-theme JSON Schema is a cross-repository contract: DEMU (this repo)
- * validates `myradio.themeTokens.*` against it before serializing `myradio:theme-config`
- * into the feed, and MYRADIO's release-theme resolver is meant to validate the parsed
- * feed value against an identical copy of this same file (see the schema's own
- * `description` field).
+ * validates the full theme-config payload (tokens/assets/options/signalCard/
+ * socialCard — see src/lib/release-theme.ts#buildThemeConfigPayload) against it
+ * before serializing `myradio:theme-config` into the feed, and MYRADIO's
+ * release-theme resolver is meant to validate the parsed feed value against an
+ * identical copy of this same file (see the schema's own `description` field).
  *
  * There is no shared package between the two repos, so nothing stops the files from
  * drifting silently. This test pins the DEMU copy to a known checksum. If you change
@@ -18,7 +19,7 @@ import { describe, expect, it } from 'vitest'
  * same commit, bump `themeSchemaVersion` in the schema if the change is not purely
  * cosmetic, and update MYRADIO's copy of the file to match once that repo carries one.
  */
-const SCHEMA_SHA256 = '4433998ef4475f2d3d11f1dbfe6781f35211b2ee36a9b4317095a4d8be49eae9'
+const SCHEMA_SHA256 = '96fb4348fc2b0cd4230ed8bee6e7c470c54fbdd39b2723e67bb46744ae98dfb9'
 
 const SCHEMA_PATH = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -32,10 +33,10 @@ describe('release-theme.schema.json contract', () => {
     expect(actual).toBe(SCHEMA_SHA256)
   })
 
-  it('declares exactly the 18 EO-specified release-theme tokens, all optional', () => {
+  it('declares exactly the 18 EO-specified release-theme tokens under `tokens`, all optional', () => {
     const raw = readFileSync(SCHEMA_PATH, 'utf8')
     const schema = JSON.parse(raw) as {
-      properties: Record<string, unknown>
+      properties: { tokens: { properties: Record<string, unknown> }; themeSchemaVersion: unknown }
       required?: string[]
     }
 
@@ -63,18 +64,38 @@ describe('release-theme.schema.json contract', () => {
     expect(EXPECTED_TOKENS).toHaveLength(18)
 
     for (const token of EXPECTED_TOKENS) {
-      expect(schema.properties).toHaveProperty(token)
+      expect(schema.properties.tokens.properties).toHaveProperty(token)
     }
 
-    // themeSchemaVersion is the only required key — every token is optional (absence
-    // means "inherit the named preset"), per the schema's own hexColor description.
+    // themeSchemaVersion is the only required top-level key — every token, asset,
+    // option, and card field is optional (absence means "inherit the named preset"
+    // / "omit this section").
     expect(schema.required).toEqual(['themeSchemaVersion'])
+  })
+
+  it('declares the assets/options/signalCard/socialCard sections with additionalProperties: false', () => {
+    const raw = readFileSync(SCHEMA_PATH, 'utf8')
+    const schema = JSON.parse(raw) as {
+      properties: Record<string, { additionalProperties?: boolean; properties?: Record<string, unknown> }>
+    }
+
+    for (const section of ['tokens', 'assets', 'options', 'signalCard', 'socialCard']) {
+      expect(schema.properties[section].additionalProperties).toBe(false)
+    }
+
+    expect(schema.properties.options.properties).toHaveProperty('artworkTreatment')
+    expect(schema.properties.options.properties).toHaveProperty('typeTreatment')
+    expect(schema.properties.options.properties).toHaveProperty('surfaceTreatment')
+    expect(schema.properties.options.properties).toHaveProperty('motion')
+    expect(schema.properties.assets.properties).toHaveProperty('backgroundImage')
+    expect(schema.properties.signalCard.properties).toHaveProperty('layout')
+    expect(schema.properties.socialCard.properties).toHaveProperty('layout')
   })
 
   it('rejects a malformed color and accepts a well-formed one (spot check, not a full JSON Schema run)', () => {
     const raw = readFileSync(SCHEMA_PATH, 'utf8')
     const schema = JSON.parse(raw) as {
-      definitions: { hexColor: { pattern: string } }
+      definitions: { hexColor: { pattern: string }; boundedUrl: { pattern: string; maxLength: number } }
     }
     const hexColorPattern = new RegExp(schema.definitions.hexColor.pattern)
 
@@ -82,5 +103,10 @@ describe('release-theme.schema.json contract', () => {
     expect(hexColorPattern.test('#1a1a2eFF')).toBe(true)
     expect(hexColorPattern.test('not-a-color')).toBe(false)
     expect(hexColorPattern.test('#fff')).toBe(false) // 3-digit shorthand intentionally not accepted
+
+    const urlPattern = new RegExp(schema.definitions.boundedUrl.pattern)
+    expect(urlPattern.test('https://example.com/a.png')).toBe(true)
+    expect(urlPattern.test('javascript:alert(1)')).toBe(false)
+    expect(schema.definitions.boundedUrl.maxLength).toBeGreaterThan(0)
   })
 })
