@@ -21,19 +21,20 @@ export const GET = async (_request: Request, context: RouteContext) => {
   const releaseResult = await payload.find({
     collection: 'releases',
     where: {
+      // Three independent conditions must ALL hold for public release, per
+      // review: the Payload published version (`_status`), the controlled
+      // workflow state, and the (now workflowState-derived, never independently
+      // settable — see src/hooks/managePublicationState.ts) publicVisibility
+      // field. `status` (legacy) is kept in sync with workflowState by the same
+      // hook, so it's redundant here rather than load-bearing, but is left in
+      // place as a fourth belt-and-suspenders check since existing MYRADIO
+      // consumers may still reason about it.
       and: [
         { slug: { equals: slug } },
+        { _status: { equals: 'published' } },
+        { workflowState: { equals: 'published' } },
         { status: { equals: 'published' } },
-        // `distribution.publicVisibility` is new (ND-MR-001) and optional — a
-        // release saved before this field existed has no value for it and must
-        // keep resolving exactly as it did before. Only an explicit "archived"
-        // or "preview" value removes a release from this public route.
-        {
-          or: [
-            { 'distribution.publicVisibility': { equals: 'public' } },
-            { 'distribution.publicVisibility': { exists: false } },
-          ],
-        },
+        { 'distribution.publicVisibility': { equals: 'public' } },
       ],
     },
     depth: 2,

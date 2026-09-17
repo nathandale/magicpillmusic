@@ -22,18 +22,14 @@ export const GET = async () => {
   const [releasesResult, settings] = await Promise.all([
     payload.find({
       collection: 'releases',
+      // See src/app/(frontend)/feeds/[slug]/route.ts for the reasoning — all four
+      // conditions must hold for a release to appear in the public feed.
       where: {
         and: [
+          { _status: { equals: 'published' } },
+          { workflowState: { equals: 'published' } },
           { status: { equals: 'published' } },
-          // See src/app/(frontend)/feeds/[slug]/route.ts for why the "exists: false"
-          // branch is here — it keeps releases saved before this field existed
-          // resolving exactly as they did before.
-          {
-            or: [
-              { 'distribution.publicVisibility': { equals: 'public' } },
-              { 'distribution.publicVisibility': { exists: false } },
-            ],
-          },
+          { 'distribution.publicVisibility': { equals: 'public' } },
         ],
       },
       sort: ['myradio.order', '-releaseDate'],
