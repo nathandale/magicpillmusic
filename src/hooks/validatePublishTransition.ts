@@ -1,7 +1,11 @@
-import type { CollectionBeforeChangeHook, Payload } from 'payload'
+import type { CollectionBeforeChangeHook, Payload, PayloadRequest } from 'payload'
 
+import { deepMerge } from '../lib/deepMerge'
+import { probeAudioUrl } from '../lib/safeAudioProbe'
+import { computeTrackSetFingerprint, type FingerprintableTrack } from '../lib/trackFingerprint'
 import { collectValidReleaseThemeTokens } from '../lib/release-theme'
 import { FINAL_PUBLICATION_STATES, type ReleaseWorkflowState } from '../access/workflowTransitions'
+import { getServerSideURL } from '../utilities/getURL'
 
 /**
  * EO §7.6 publish-validation gate, scoped to Workstream 1A.
@@ -21,13 +25,13 @@ import { FINAL_PUBLICATION_STATES, type ReleaseWorkflowState } from '../access/w
  * must fail closed with a clear, actionable message — never be skipped, faked, or
  * silently passed — until the real services exist and a genuine attestation/receipt
  * has been recorded.
+ *
+ * All validation state (the accumulated error list) is request-local — a single
+ * module-level array here would corrupt concurrent overlapping requests, since
+ * Node's async execution can interleave two in-flight validations of different
+ * releases. Every check function takes an `errors: string[]` it appends to, owned by
+ * the single top-level call for this request.
  */
-
-const ERRORS: string[] = []
-
-const fail = (message: string): void => {
-  ERRORS.push(message)
-}
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0
 
@@ -83,7 +87,7 @@ const CONTRAST_PAIRS: { fg: string; bg: string; minRatio: number; label: string 
   { fg: 'beacon', bg: 'panelStart', minRatio: 3, label: 'beacon/focus indicator vs. panel background (non-text, 3:1)' },
 ]
 
-const checkThemeContrast = (tokens: ThemeTokens): void => {
+const checkThemeContrast = (tokens: ThemeTokens, errors: string[]): void => {
   for (const { fg, bg, minRatio, label } of CONTRAST_PAIRS) {
     const fgValue = tokens[fg]
     const bgValue = tokens[bg]
@@ -91,7 +95,7 @@ const checkThemeContrast = (tokens: ThemeTokens): void => {
     const ratio = contrastRatio(fgValue, bgValue)
     if (ratio === null) continue // malformed values are already caught by collectValidReleaseThemeTokens
     if (ratio < minRatio) {
-      fail(`Theme contrast: ${label} is ${ratio.toFixed(2)}:1, below the required ${minRatio}:1.`)
+      errors.push(`Theme contrast: ${label} is ${ratio.toFixed(2)}:1, below the required ${minRatio}:1.`)
     }
   }
 }
@@ -106,6 +110,7 @@ type ReleaseLike = {
     theme?: string | null
     isDefault?: boolean | null
     themeSchemaVersion?: number | null
+    themeRevision?: number | null
     themeTokens?: ThemeTokens | null
   } | null
   distribution?: {
@@ -128,43 +133,57 @@ type ReleaseLike = {
   } | null
 }
 
-const trackSetFingerprint = (
-  tracks: { shareId?: string | null; duration?: number | null; guid?: string | null }[],
-): string =>
-  tracks
-    .map((t) => `${t.shareId ?? t.guid ?? ''}:${t.duration ?? 0}`)
-    .sort()
-    .join('|')
+type TrackLike = FingerprintableTrack & {
+  id: number | string
+  explicit?: boolean | null
+  rightsConfirmed?: boolean | null
+  lyricsStatus?: string | null
+}
+
+type ReceiptLike = {
+  outcome?: string | null
+  environment?: string | null
+  release?: unknown
+  releaseGuid?: string | null
+  trackFingerprint?: string | null
+  schemaVersion?: number | null
+  playerVersion?: string | null
+  themeVersion?: number | null
+}
 
 const validateReleaseFinalTransition = async (
   payload: Payload,
+  req: PayloadRequest,
   release: ReleaseLike,
+  errors: string[],
 ): Promise<void> => {
   // 1. Stable GUIDs
   if (!isNonEmptyString(release.releaseGuid)) {
-    fail('Release GUID is missing.')
+    errors.push('Release GUID is missing.')
   }
 
   // 3. Artist
   if (!release.artist) {
-    fail('Artist is required.')
+    errors.push('Artist is required.')
   }
 
   // 4. Release date or intentional archive treatment
   const lane = release.distribution?.releaseLane
   if (!release.releaseDate && lane !== 'archive') {
-    fail('Release date is required unless the release lane is "archive".')
+    errors.push('Release date is required unless the release lane is "archive".')
   }
 
   // 5. Approved cover art + alt text
   if (!release.coverImage) {
-    fail('Cover image is required.')
+    errors.push('Cover image is required.')
   } else {
     const coverId = typeof release.coverImage === 'object' ? (release.coverImage as { id?: unknown }).id : release.coverImage
     if (coverId !== undefined && coverId !== null) {
-      const media = await payload.findByID({ collection: 'media', id: coverId as string | number, depth: 0 }).catch(() => null)
+      const media = await payload
+        .findByID({ collection: 'media', id: coverId as string | number, depth: 0, req })
+        .catch(() => null)
       if (!media || !isNonEmptyString((media as { alt?: unknown }).alt)) {
-        fail('Cover image is missing alt text.')
+        errors.push('Cover image is missing alt text.')
       }
     }
   }
@@ -176,30 +195,18 @@ const validateReleaseFinalTransition = async (
         where: { release: { equals: release.id } },
         depth: 0,
         limit: 500,
+        req,
       })
     : { docs: [] }
-  const tracks = tracksResult.docs as {
-    id: number | string
-    shareId?: string | null
-    guid?: string | null
-    trackNumber?: number | null
-    mimeType?: string | null
-    fileSize?: number | null
-    duration?: number | null
-    audioFile?: unknown
-    audioUrl?: string | null
-    explicit?: boolean | null
-    rightsConfirmed?: boolean | null
-    lyricsStatus?: string | null
-  }[]
+  const tracks = tracksResult.docs as unknown as TrackLike[]
 
   if (tracks.length === 0) {
-    fail('At least one track is required.')
+    errors.push('At least one track is required.')
   }
 
   const trackNumbers = tracks.map((t) => t.trackNumber).filter((n): n is number => typeof n === 'number')
   if (new Set(trackNumbers).size !== trackNumbers.length) {
-    fail('Duplicate track numbers found — track order must be deterministic.')
+    errors.push('Duplicate track numbers found — track order must be deterministic.')
   }
 
   for (const track of tracks) {
@@ -207,47 +214,60 @@ const validateReleaseFinalTransition = async (
 
     // 1 (track half): shareId present
     if (!isNonEmptyString(track.shareId)) {
-      fail(`${label}: missing shareId.`)
+      errors.push(`${label}: missing shareId.`)
     }
 
-    // 6/7: audio present and well-formed; MIME/size/duration plausible
+    // 6: audio present, well-formed, and reachable — a bounded, SSRF-safe probe,
+    // not just a presence check. See src/lib/safeAudioProbe.ts.
     const hasAudioFile = Boolean(track.audioFile)
     const hasAudioUrl = isNonEmptyString(track.audioUrl)
     if (!hasAudioFile && !hasAudioUrl) {
-      fail(`${label}: no audio file or audio URL.`)
+      errors.push(`${label}: no audio file or audio URL.`)
+    } else if (hasAudioUrl && !isWellFormedUrl(track.audioUrl)) {
+      errors.push(`${label}: audio URL is not well-formed.`)
+    } else {
+      const resolvedUrl = await resolveTrackAudioUrl(payload, req, track)
+      if (resolvedUrl) {
+        const probe = await probeAudioUrl(resolvedUrl)
+        if (!probe.ok) {
+          errors.push(`${label}: audio is not reachable (${probe.reason}).`)
+        }
+      } else {
+        errors.push(`${label}: could not resolve an absolute audio URL to probe.`)
+      }
     }
-    if (hasAudioUrl && !isWellFormedUrl(track.audioUrl)) {
-      fail(`${label}: audio URL is not well-formed.`)
-    }
-    // Presence/well-formedness only — a live server-side HEAD/range probe of the
-    // audio origin is deferred; see the Workstream 1A completion report.
+
+    // 7. MIME type, byte length, duration present and plausible
     if (!isNonEmptyString(track.mimeType)) {
-      fail(`${label}: MIME type is missing.`)
+      errors.push(`${label}: MIME type is missing.`)
+    }
+    if (typeof track.fileSize !== 'number' || track.fileSize <= 0) {
+      errors.push(`${label}: byte length (fileSize) is missing or implausible.`)
     }
     if (typeof track.duration !== 'number' || track.duration <= 0) {
-      fail(`${label}: duration is missing or implausible.`)
+      errors.push(`${label}: duration is missing or implausible.`)
     }
 
     // 10. Explicit-content value set (always has a schema default; kept for
     // documentation/parity with the EO's condition list)
     if (typeof track.explicit !== 'boolean') {
-      fail(`${label}: explicit-content flag is not set.`)
+      errors.push(`${label}: explicit-content flag is not set.`)
     }
 
     // 11. Rights confirmation
     if (!track.rightsConfirmed) {
-      fail(`${label}: rights are not confirmed.`)
+      errors.push(`${label}: rights are not confirmed.`)
     }
 
     // 12. Lyrics verified or explicitly not applicable
     if (track.lyricsStatus !== 'verified' && track.lyricsStatus !== 'not_applicable') {
-      fail(`${label}: lyrics status must be "verified" or "not applicable" (currently "${track.lyricsStatus ?? 'missing'}").`)
+      errors.push(`${label}: lyrics status must be "verified" or "not applicable" (currently "${track.lyricsStatus ?? 'missing'}").`)
     }
   }
 
   // 13. MYRADIO theme/order valid; no more than one default release
   if (!isNonEmptyString(release.myradio?.theme)) {
-    fail('MYRADIO theme is required.')
+    errors.push('MYRADIO theme is required.')
   }
   if (release.myradio?.isDefault && release.id) {
     const others = await payload.find({
@@ -257,71 +277,114 @@ const validateReleaseFinalTransition = async (
       },
       depth: 0,
       limit: 1,
+      req,
     })
     if (others.totalDocs > 0) {
-      fail('Another release is already marked as the default MYRADIO channel — only one is allowed.')
+      errors.push('Another release is already marked as the default MYRADIO channel — only one is allowed.')
     }
   }
 
   // 14. Theme schema/revision present, tokens valid, contrast checks
   if (!release.myradio?.themeSchemaVersion) {
-    fail('Theme schema version is missing.')
+    errors.push('Theme schema version is missing.')
   }
   const { invalidKeys } = collectValidReleaseThemeTokens(release.myradio?.themeTokens ?? {})
   if (invalidKeys.length > 0) {
-    fail(`Invalid theme token value(s): ${invalidKeys.join(', ')}.`)
+    errors.push(`Invalid theme token value(s): ${invalidKeys.join(', ')}.`)
   }
-  checkThemeContrast((release.myradio?.themeTokens as ThemeTokens) ?? {})
+  checkThemeContrast((release.myradio?.themeTokens as ThemeTokens) ?? {}, errors)
 
   // 16. Embed enabled
   if (!release.distribution?.embedEnabled) {
-    fail('Embed is not enabled for this release (Distribution → "Embed enabled").')
+    errors.push('Embed is not enabled for this release (Distribution → "Embed enabled").')
   }
 
   // 17. Canonical SHADOW URL/slug
   if (!isWellFormedUrl(release.distribution?.shadowPostUrl)) {
-    fail('SHADOW post URL is missing or not well-formed.')
+    errors.push('SHADOW post URL is missing or not well-formed.')
   }
   if (!isNonEmptyString(release.distribution?.shadowPostSlug)) {
-    fail('SHADOW post slug is missing.')
+    errors.push('SHADOW post slug is missing.')
   }
 
   // 18. Campaign key + analytics schema version
   if (!isNonEmptyString(release.distribution?.campaignKey)) {
-    fail('Campaign key is missing.')
+    errors.push('Campaign key is missing.')
   }
   if (!release.distribution?.analyticsSchemaVersion) {
-    fail('Analytics schema version is missing.')
+    errors.push('Analytics schema version is missing.')
   }
 
   // 19. PostHog verification receipt — fails closed; Workstream 1B not authorized.
+  // A passing receipt must belong to THIS exact release and THIS exact current
+  // production configuration: environment, release GUID, the current track-set
+  // fingerprint, analytics schema version, and theme revision must all match what
+  // the receipt itself recorded at the moment it was created — not merely "some
+  // passing receipt exists and points here."
   const receiptPointer = release.analyticsVerification?.latest
   if (!receiptPointer) {
-    fail(
+    errors.push(
       'No passing PostHog verification receipt is recorded for this release. This requires the "Verify analytics" action, which is not available until Workstream 1B (the MYRADIO analytics gate) ships. This is expected, not a bug — publication cannot proceed until a real verification has run.',
     )
   } else {
     const receiptId = typeof receiptPointer === 'object' ? (receiptPointer as { id?: unknown }).id : receiptPointer
     const receipt = receiptId
-      ? await payload.findByID({ collection: 'analytics-verification-receipts', id: receiptId as string | number, depth: 0 }).catch(() => null)
+      ? ((await payload
+          .findByID({ collection: 'analytics-verification-receipts', id: receiptId as string | number, depth: 0, req })
+          .catch(() => null)) as ReceiptLike | null)
       : null
-    if (!receipt || (receipt as { outcome?: string }).outcome !== 'pass') {
-      fail('The referenced analytics verification receipt is missing or is not a passing attempt.')
-    } else if ((receipt as { schemaVersion?: number }).schemaVersion !== release.distribution?.analyticsSchemaVersion) {
-      fail('The recorded analytics verification receipt is for a different analytics schema version than this release currently declares — re-verify.')
+
+    if (!receipt || receipt.outcome !== 'pass') {
+      errors.push('The referenced analytics verification receipt is missing or is not a passing attempt.')
+    } else {
+      const receiptReleaseId = relIdOf(receipt.release)
+      const currentFingerprint = computeTrackSetFingerprint(tracks)
+      const mismatches: string[] = []
+
+      if (String(receiptReleaseId ?? '') !== String(release.id ?? '')) {
+        mismatches.push('release')
+      }
+      if (receipt.releaseGuid !== release.releaseGuid) {
+        mismatches.push('release GUID')
+      }
+      if (receipt.trackFingerprint !== currentFingerprint) {
+        mismatches.push('track set')
+      }
+      if (receipt.schemaVersion !== release.distribution?.analyticsSchemaVersion) {
+        mismatches.push('analytics schema version')
+      }
+      if (receipt.themeVersion !== release.myradio?.themeRevision) {
+        mismatches.push('theme revision')
+      }
+      if (!isNonEmptyString(receipt.playerVersion)) {
+        // DEMU has no way to know MYRADIO's current live player version in
+        // Workstream 1A (there is no query path to it yet) — the strongest check
+        // available here is that a genuine verification run recorded *some*
+        // player version at all, not a specific expected value.
+        mismatches.push('player version (not recorded on the receipt)')
+      }
+      if (!isNonEmptyString(receipt.environment)) {
+        mismatches.push('environment (not recorded on the receipt)')
+      }
+
+      if (mismatches.length > 0) {
+        errors.push(
+          `The recorded analytics verification receipt does not match the release's current configuration (${mismatches.join(', ')}) — re-verify.`,
+        )
+      }
     }
   }
 
   // 20. Preview attestation — fails closed; Workstream 1B not authorized.
   const attestation = release.previewAttestation
   if (!isNonEmptyString(attestation?.attestedAt)) {
-    fail(
+    errors.push(
       'No preview attestation is recorded for this release. This requires the "Run player preview" action, which is not available until Workstream 1B (real MYRADIO preview routes) ships. This is expected, not a bug — publication cannot proceed until a real preview has been run.',
     )
   } else {
-    const currentFingerprint = trackSetFingerprint(tracks)
+    const currentFingerprint = computeTrackSetFingerprint(tracks)
     const staleReasons: string[] = []
-    if (attestation?.themeRevisionAt !== (release.myradio as { themeRevision?: number } | null)?.themeRevision) {
+    if (attestation?.themeRevisionAt !== release.myradio?.themeRevision) {
       staleReasons.push('theme has changed since the preview was run')
     }
     if (attestation?.trackFingerprintAt !== currentFingerprint) {
@@ -331,9 +394,43 @@ const validateReleaseFinalTransition = async (
       staleReasons.push('the analytics schema version has changed since the preview was run')
     }
     if (staleReasons.length > 0) {
-      fail(`Preview attestation is stale (${staleReasons.join('; ')}) — re-run "Run player preview".`)
+      errors.push(`Preview attestation is stale (${staleReasons.join('; ')}) — re-run "Run player preview".`)
     }
   }
+}
+
+const relIdOf = (value: unknown): unknown =>
+  value && typeof value === 'object' && 'id' in (value as Record<string, unknown>) ? (value as Record<string, unknown>).id : value
+
+/** Resolves a track's audio source to an absolute URL the probe can fetch. */
+const resolveTrackAudioUrl = async (
+  payload: Payload,
+  req: PayloadRequest,
+  track: { audioUrl?: string | null; audioFile?: unknown },
+): Promise<string | null> => {
+  if (isNonEmptyString(track.audioUrl)) {
+    return track.audioUrl
+  }
+
+  if (track.audioFile) {
+    const fileId = relIdOf(track.audioFile)
+    if (fileId === undefined || fileId === null) return null
+    const media = await payload
+      .findByID({ collection: 'audio-media', id: fileId as string | number, depth: 0, req })
+      .catch(() => null)
+    const relativeOrAbsoluteUrl = (media as { url?: string | null } | null)?.url
+    if (!relativeOrAbsoluteUrl) return null
+    if (relativeOrAbsoluteUrl.startsWith('http://') || relativeOrAbsoluteUrl.startsWith('https://')) {
+      return relativeOrAbsoluteUrl
+    }
+    try {
+      return new URL(relativeOrAbsoluteUrl, getServerSideURL()).toString()
+    } catch {
+      return null
+    }
+  }
+
+  return null
 }
 
 export const validateReleasePublishTransition: CollectionBeforeChangeHook = async ({
@@ -362,16 +459,23 @@ export const validateReleasePublishTransition: CollectionBeforeChangeHook = asyn
   // Only the three EO-specified final-tier states are gated by this hook, and only
   // when actually transitioning into one of them. Ordinary draft editing is
   // untouched.
-  if (!nextState || nextState === currentState || !FINAL_PUBLICATION_STATES.has(nextState) && nextState !== 'analytics_verified') {
+  const isFinalTierTarget = nextState !== undefined && (FINAL_PUBLICATION_STATES.has(nextState) || nextState === 'analytics_verified')
+  if (!nextState || nextState === currentState || !isFinalTierTarget) {
     return data
   }
 
-  ERRORS.length = 0
-  const merged: ReleaseLike = { ...(originalDoc as ReleaseLike), ...(data as ReleaseLike), id: originalDoc?.id ?? data?.id }
-  await validateReleaseFinalTransition(req.payload, merged)
+  const errors: string[] = []
+  // Deep merge, not a shallow spread: `data` may be a sparse/partial payload for
+  // nested groups (see src/lib/deepMerge.ts) — a shallow merge here would let a
+  // request touching only one field of e.g. `distribution` silently wipe every
+  // other field of that group for validation purposes.
+  const merged = deepMerge((originalDoc ?? {}) as Record<string, unknown>, (data ?? {}) as Record<string, unknown>) as ReleaseLike
+  merged.id = originalDoc?.id ?? data?.id
 
-  if (ERRORS.length > 0) {
-    throw new Error(`Cannot move to "${nextState}":\n- ${ERRORS.join('\n- ')}`)
+  await validateReleaseFinalTransition(req.payload, req, merged, errors)
+
+  if (errors.length > 0) {
+    throw new Error(`Cannot move to "${nextState}":\n- ${errors.join('\n- ')}`)
   }
 
   return data
@@ -384,7 +488,7 @@ export const validateReleasePublishTransition: CollectionBeforeChangeHook = asyn
  * release-scoped: a release-wide preview attestation and analytics receipt, not a
  * per-track one).
  */
-export const validateTrackReadinessTransition: CollectionBeforeChangeHook = async ({ data, originalDoc }) => {
+export const validateTrackReadinessTransition: CollectionBeforeChangeHook = async ({ data, originalDoc, req }) => {
   const nextState = data?.trackReadiness as string | undefined
   const currentState = (originalDoc?.trackReadiness as string | undefined) ?? 'draft'
 
@@ -392,10 +496,11 @@ export const validateTrackReadinessTransition: CollectionBeforeChangeHook = asyn
     return data
   }
 
-  const merged = { ...(originalDoc ?? {}), ...(data ?? {}) } as {
+  const merged = deepMerge((originalDoc ?? {}) as Record<string, unknown>, (data ?? {}) as Record<string, unknown>) as {
     audioFile?: unknown
     audioUrl?: string | null
     mimeType?: string | null
+    fileSize?: number | null
     duration?: number | null
     rightsConfirmed?: boolean | null
     lyricsStatus?: string | null
@@ -406,9 +511,21 @@ export const validateTrackReadinessTransition: CollectionBeforeChangeHook = asyn
 
   if (!isNonEmptyString(merged.shareId)) errors.push('shareId is missing.')
   const hasAudio = Boolean(merged.audioFile) || isNonEmptyString(merged.audioUrl)
-  if (!hasAudio) errors.push('no audio file or audio URL.')
-  if (isNonEmptyString(merged.audioUrl) && !isWellFormedUrl(merged.audioUrl)) errors.push('audio URL is not well-formed.')
+  if (!hasAudio) {
+    errors.push('no audio file or audio URL.')
+  } else if (isNonEmptyString(merged.audioUrl) && !isWellFormedUrl(merged.audioUrl)) {
+    errors.push('audio URL is not well-formed.')
+  } else {
+    const resolvedUrl = await resolveTrackAudioUrl(req.payload, req, merged)
+    if (resolvedUrl) {
+      const probe = await probeAudioUrl(resolvedUrl)
+      if (!probe.ok) errors.push(`audio is not reachable (${probe.reason}).`)
+    } else {
+      errors.push('could not resolve an absolute audio URL to probe.')
+    }
+  }
   if (!isNonEmptyString(merged.mimeType)) errors.push('MIME type is missing.')
+  if (typeof merged.fileSize !== 'number' || merged.fileSize <= 0) errors.push('byte length (fileSize) is missing or implausible.')
   if (typeof merged.duration !== 'number' || merged.duration <= 0) errors.push('duration is missing or implausible.')
   if (!merged.rightsConfirmed) errors.push('rights are not confirmed.')
   if (merged.lyricsStatus !== 'verified' && merged.lyricsStatus !== 'not_applicable') {
