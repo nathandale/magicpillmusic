@@ -6,7 +6,7 @@ import type {
 } from 'payload'
 
 import { deepMerge } from '../lib/deepMerge'
-import type { ReleaseWorkflowState } from '../access/workflowTransitions'
+import { FINAL_PUBLICATION_STATES, type ReleaseWorkflowState } from '../access/workflowTransitions'
 
 const relId = (value: unknown): unknown =>
   value && typeof value === 'object' && 'id' in (value as Record<string, unknown>)
@@ -134,8 +134,8 @@ export const manageReleaseServerFields: CollectionBeforeChangeHook = async ({ da
   // alter public presentation or media fields.
   if (
     operation === 'update' &&
-    originalDoc?.workflowState === 'published' &&
-    nextWorkflowState === 'published' &&
+    FINAL_PUBLICATION_STATES.has(originalDoc?.workflowState as ReleaseWorkflowState) &&
+    FINAL_PUBLICATION_STATES.has(nextWorkflowState) &&
     context?.skipPublicationStateManagement !== true
   ) {
     const merged = deepMerge(
@@ -144,7 +144,7 @@ export const manageReleaseServerFields: CollectionBeforeChangeHook = async ({ da
     )
     if (releasePublicationSnapshot(originalDoc as Record<string, unknown>) !== releasePublicationSnapshot(merged)) {
       throw new Error(
-        'This release is published. Move workflowState out of "published" before editing release content, distribution, analytics schema, or presentation fields; then re-run preview and analytics verification before publishing again.',
+        'This release is scheduled or published. Move workflowState out of the final-publication states before editing release content, distribution, analytics schema, or presentation fields; then re-run preview and analytics verification before scheduling or publishing again.',
       )
     }
   }
@@ -233,7 +233,7 @@ const trackMutationSnapshot = (track: Record<string, unknown>): string => {
   return JSON.stringify(canonicalize(copy))
 }
 
-const parentReleaseIsPublished = async (
+const parentReleaseIsFinal = async (
   releaseRef: unknown,
   req: import('payload').PayloadRequest,
 ): Promise<boolean> => {
@@ -245,10 +245,10 @@ const parentReleaseIsPublished = async (
     depth: 0,
     req,
   })
-  return release.workflowState === 'published'
+  return FINAL_PUBLICATION_STATES.has(release.workflowState as ReleaseWorkflowState)
 }
 
-/** A public release must be moved back to an editable workflow state before any child Track is created or changed. */
+/** A scheduled or published release must return to an editable workflow state before any child Track changes. */
 export const protectPublishedReleaseTrackMutation: CollectionBeforeChangeHook = async ({
   data,
   originalDoc,
@@ -259,7 +259,7 @@ export const protectPublishedReleaseTrackMutation: CollectionBeforeChangeHook = 
   if (context?.skipPublicationStateManagement) return data
 
   const releaseRef = data?.release ?? originalDoc?.release
-  if (!(await parentReleaseIsPublished(releaseRef, req))) return data
+  if (!(await parentReleaseIsFinal(releaseRef, req))) return data
 
   const changed =
     operation === 'create' ||
@@ -273,7 +273,7 @@ export const protectPublishedReleaseTrackMutation: CollectionBeforeChangeHook = 
 
   if (changed) {
     throw new Error(
-      'The parent release is published. Move the release workflowState out of "published" before creating or editing tracks; the release must be previewed and verified again before republishing.',
+      'The parent release is scheduled or published. Move the release workflowState out of the final-publication states before creating or editing tracks; the release must be previewed and verified again before scheduling or publishing.',
     )
   }
   return data
@@ -281,9 +281,9 @@ export const protectPublishedReleaseTrackMutation: CollectionBeforeChangeHook = 
 
 export const protectPublishedReleaseTrackDelete: CollectionBeforeDeleteHook = async ({ id, req }) => {
   const track = await req.payload.findByID({ collection: 'tracks', id, depth: 0, req })
-  if (await parentReleaseIsPublished(track.release, req)) {
+  if (await parentReleaseIsFinal(track.release, req)) {
     throw new Error(
-      'The parent release is published. Move the release workflowState out of "published" before deleting tracks.',
+      'The parent release is scheduled or published. Move the release workflowState out of the final-publication states before deleting tracks.',
     )
   }
 }

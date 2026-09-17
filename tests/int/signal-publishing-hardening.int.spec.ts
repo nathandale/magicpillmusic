@@ -995,7 +995,7 @@ describe('Review round 2: publication-gate hardening', () => {
     })
   })
 
-  describe('14. already-published content is immutable until explicitly returned to an editable state', () => {
+  describe('14. scheduled/published content is immutable until explicitly returned to an editable state', () => {
     it('rejects a release-content edit while workflowState remains published', async () => {
       await expect(
         manageReleaseServerFields({
@@ -1011,7 +1011,25 @@ describe('Review round 2: publication-gate hardening', () => {
           data: { title: 'Unverified replacement', workflowState: 'published' },
           context: {},
         } as never),
-      ).rejects.toThrow(/Move workflowState out of "published"/)
+      ).rejects.toThrow(/Move workflowState out of the final-publication states/)
+    })
+
+    it('rejects a release-content edit while workflowState remains scheduled', async () => {
+      await expect(
+        manageReleaseServerFields({
+          operation: 'update',
+          originalDoc: {
+            id: 1,
+            title: 'Scheduled title',
+            workflowState: 'scheduled',
+            status: 'draft',
+            distribution: { publicVisibility: 'preview', analyticsSchemaVersion: 1 },
+            myradio: { themeRevision: 2 },
+          },
+          data: { title: 'Unverified replacement', workflowState: 'scheduled' },
+          context: {},
+        } as never),
+      ).rejects.toThrow(/Move workflowState out of the final-publication states/)
     })
 
     it('allows an explicit transition out of published before editing', async () => {
@@ -1045,7 +1063,24 @@ describe('Review round 2: publication-gate hardening', () => {
           req,
           context: {},
         } as never),
-      ).rejects.toThrow(/parent release is published/i)
+      ).rejects.toThrow(/parent release is scheduled or published/i)
+    })
+
+    it('rejects a child-track mutation while its parent release is scheduled', async () => {
+      const req = {
+        payload: {
+          findByID: async () => ({ workflowState: 'scheduled' }),
+        },
+      }
+      await expect(
+        protectPublishedReleaseTrackMutation({
+          operation: 'update',
+          originalDoc: { id: 2, release: 1, title: 'Original', duration: 100 },
+          data: { duration: 101 },
+          req,
+          context: {},
+        } as never),
+      ).rejects.toThrow(/parent release is scheduled or published/i)
     })
 
     it('changing analytics schema clears both preview and analytics verification state', async () => {
