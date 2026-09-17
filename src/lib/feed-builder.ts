@@ -9,6 +9,26 @@ type TrackWithFeedFields = Track & {
   guid?: string | null
 }
 
+// New in ND-MR-001, backward compatible by construction: every tag below is only
+// emitted when the corresponding field has a value, so a release saved before these
+// fields existed produces exactly the feed it always did. MYRADIO's adapter must
+// treat all of these as optional and fall back gracefully — see AUDIT-FINDINGS.md §8.
+type DistributionFields = {
+  releaseLane?: string | null
+  shadowPostUrl?: string | null
+  shadowPostSlug?: string | null
+  defaultShareTarget?: string | null
+  embedEnabled?: boolean | null
+  campaignKey?: string | null
+  analyticsSchemaVersion?: number | null
+}
+
+type ThemeExtensionFields = {
+  themeSchemaVersion?: number | null
+  themeRevision?: number | null
+  themeTokens?: Record<string, string | null | undefined> | null
+}
+
 type ValueSplitWithFeedFields = ValueSplit
 
 type FeedInput = {
@@ -113,19 +133,72 @@ const optionalTag = (name: string, value: string): string => (value ? `    <${na
  * MY RADIO presentation fields, carried as <podcast:txt purpose="myradio:…">.
  * podcast:txt is the spec's free-form text slot; other clients ignore unknown purposes.
  */
+const MAX_THEME_CONFIG_JSON_LENGTH = 4000
+
+/**
+ * Serializes only the token/version fields the shared release-theme schema
+ * (src/schemas/release-theme.schema.json) actually defines — never arbitrary CSS,
+ * HTML, or JS, and capped in size per EO §7.8.
+ */
+const themeConfigJson = (theme: ThemeExtensionFields | null | undefined): string | null => {
+  if (!theme?.themeSchemaVersion) return null
+
+  const tokens = theme.themeTokens ?? {}
+  const nonEmptyTokens = Object.fromEntries(
+    Object.entries(tokens).filter(([, value]) => typeof value === 'string' && value.trim() !== ''),
+  )
+
+  const payload = {
+    themeSchemaVersion: theme.themeSchemaVersion,
+    ...nonEmptyTokens,
+  }
+
+  const json = JSON.stringify(payload)
+  if (json.length > MAX_THEME_CONFIG_JSON_LENGTH) {
+    console.warn(`[feed-builder] myradio:theme-config exceeds ${MAX_THEME_CONFIG_JSON_LENGTH} chars; omitting from feed.`)
+    return null
+  }
+  return json
+}
+
 const myRadioTxtTags = (release: ReleaseWithFeedFields): string => {
-  const m = release.myradio
-  if (!m) return ''
+  const m = release.myradio as (typeof release.myradio & ThemeExtensionFields) | null | undefined
+  const d = (release as ReleaseWithFeedFields & { distribution?: DistributionFields | null }).distribution
+  if (!m && !d) return ''
+
   const tag = (purpose: string, value: string | null | undefined): string =>
     value ? `    <podcast:txt purpose="myradio:${purpose}">${xmlText(String(value))}</podcast:txt>\n` : ''
-  return (
-    tag('kicker', m.kicker) +
-    tag('theme', m.theme) +
-    tag('heartUrl', m.heartUrl) +
-    tag('token', m.token) +
-    (m.isDefault ? tag('default', 'true') : '') +
-    (m.terrestrialHandoff ? tag('terrestrialHandoff', 'true') : '')
-  )
+  const cdataTag = (purpose: string, value: string | null | undefined): string =>
+    value ? `    <podcast:txt purpose="myradio:${purpose}">${toCdata(value)}</podcast:txt>\n` : ''
+
+  const legacy = m
+    ? tag('kicker', m.kicker) +
+      tag('theme', m.theme) +
+      tag('heartUrl', m.heartUrl) +
+      tag('token', m.token) +
+      (m.isDefault ? tag('default', 'true') : '') +
+      (m.terrestrialHandoff ? tag('terrestrialHandoff', 'true') : '')
+    : ''
+
+  const themeConfig = m ? themeConfigJson(m) : null
+
+  const signalCard = d
+    ? tag('release-lane', d.releaseLane) +
+      tag('shadow-url', d.shadowPostUrl) +
+      tag('shadow-slug', d.shadowPostSlug) +
+      tag('share-target', d.defaultShareTarget) +
+      (d.embedEnabled ? tag('embed-enabled', 'true') : '') +
+      tag('campaign-key', d.campaignKey) +
+      (d.analyticsSchemaVersion ? tag('analytics-schema', String(d.analyticsSchemaVersion)) : '')
+    : ''
+
+  const themeMeta = m
+    ? (m.themeSchemaVersion ? tag('theme-schema', String(m.themeSchemaVersion)) : '') +
+      (m.themeRevision ? tag('theme-revision', String(m.themeRevision)) : '') +
+      cdataTag('theme-config', themeConfig)
+    : ''
+
+  return legacy + signalCard + themeMeta
 }
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -156,13 +229,27 @@ const fundingTagsFor = (links: FundingEntry[] | null | undefined, baseUrl: strin
  * Per-song liner notes for MY RADIO's back-of-artwork view, carried as
  * <podcast:txt purpose="myradio:…">. Other P2.0 clients ignore unknown purposes.
  */
-const trackNotesTags = (track: { year?: number | null; songwriters?: string | null; personnel?: string | null; story?: string | null }): string => {
+const trackNotesTags = (track: {
+  year?: number | null
+  songwriters?: string | null
+  personnel?: string | null
+  story?: string | null
+  shareId?: string | null
+  shareExcerpt?: string | null
+}): string => {
   const tag = (purpose: string, value: string | null | undefined): string =>
     value && String(value).trim()
       ? `      <podcast:txt purpose="myradio:${purpose}">${xmlText(String(value))}</podcast:txt>\n`
       : ''
   const year = track.year ? tag('year', String(track.year)) : ''
-  return year + tag('songwriters', track.songwriters) + tag('personnel', track.personnel) + tag('story', track.story)
+  return (
+    year +
+    tag('songwriters', track.songwriters) +
+    tag('personnel', track.personnel) +
+    tag('story', track.story) +
+    tag('share-id', track.shareId) +
+    tag('share-excerpt', track.shareExcerpt)
+  )
 }
 
 export const buildReleaseFeedXml = ({
@@ -265,7 +352,16 @@ export const buildReleaseFeedXml = ({
         ((track as TrackWithFeedFields & { hideFunding?: boolean }).hideFunding
           ? '      <podcast:txt purpose="myradio:funding">off</podcast:txt>\n'
           : fundingTagsFor((track as TrackWithFeedFields & { fundingLinks?: FundingEntry[] }).fundingLinks, normalizedBaseUrl, '      ')) +
-        trackNotesTags(track as TrackWithFeedFields & { year?: number; songwriters?: string; personnel?: string; story?: string }) +
+        trackNotesTags(
+          track as TrackWithFeedFields & {
+            year?: number
+            songwriters?: string
+            personnel?: string
+            story?: string
+            shareId?: string
+            shareExcerpt?: string
+          },
+        ) +
         '    </item>\n'
       )
     })
