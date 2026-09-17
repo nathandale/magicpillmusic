@@ -54,18 +54,20 @@ export const TRACK_READINESS_OPTIONS: { label: string; value: TrackReadiness }[]
 ]
 
 /**
- * Field-level access for Releases.workflowState. Field access only ever returns a
- * boolean (no query constraints), which is exactly what a single-field gate needs.
- * `doc` is the document as it stood before this operation; `siblingData` carries the
- * incoming value for this group. On create there is no `doc` yet — new releases
- * always start at the field's own default ("draft"), so no elevated role is needed
- * to create one.
+ * Field-level access for Releases.workflowState — enforced on BOTH create and
+ * update. `doc` is undefined on create, so `currentValue` defaults to `'draft'`
+ * (the field's own default) either way. This is deliberately NOT short-circuited
+ * for create: a request that tries to `create` a release with `workflowState:
+ * 'published'` directly (skipping every earlier state) must be gated exactly the
+ * same as an update attempting that same jump, or role-gating on this field is
+ * fiction — a prior version of this function returned `true` unconditionally
+ * whenever `doc` was undefined, which let any authenticated user create a
+ * pre-published release. Field access only ever returns a boolean (no query
+ * constraints), which is exactly what a single-field gate needs.
  */
 export const workflowStateFieldAccess: FieldAccess = ({ req: { user }, siblingData, doc }) => {
-  if (!doc) return true // create path — defaults to 'draft', not an elevated transition
-
   const nextValue = siblingData?.workflowState as ReleaseWorkflowState | undefined
-  const currentValue = (doc.workflowState as ReleaseWorkflowState | undefined) ?? 'draft'
+  const currentValue = (doc?.workflowState as ReleaseWorkflowState | undefined) ?? 'draft'
 
   if (nextValue === undefined || nextValue === currentValue) return true // not being changed
 
@@ -77,20 +79,32 @@ export const workflowStateFieldAccess: FieldAccess = ({ req: { user }, siblingDa
 }
 
 /**
- * Field-level access for Tracks.trackReadiness. No final-publication tier exists here
- * (decision 5) — any advance beyond the create-time default requires publisher/admin,
- * mirroring the Release field's non-final-state gating.
+ * Field-level access for Tracks.trackReadiness. Same create-and-update reasoning
+ * as `workflowStateFieldAccess` above. No final-publication tier exists here
+ * (decision 5) — any advance beyond the create-time default requires publisher/
+ * admin.
  */
 export const trackReadinessFieldAccess: FieldAccess = ({ req: { user }, siblingData, doc }) => {
-  if (!doc) return true
-
   const nextValue = siblingData?.trackReadiness as TrackReadiness | undefined
-  const currentValue = (doc.trackReadiness as TrackReadiness | undefined) ?? 'draft'
+  const currentValue = (doc?.trackReadiness as TrackReadiness | undefined) ?? 'draft'
 
   if (nextValue === undefined || nextValue === currentValue) return true
 
   return isPublisher(user as User | null)
 }
+
+/**
+ * For fields that must be computed by server-side hook logic only — GUIDs, share
+ * IDs, preview attestations, analytics-verification pointers/summaries, audit
+ * timestamps. `admin.readOnly` only hides a field in the admin UI; it does not
+ * stop a direct REST/GraphQL/Local-API-with-overrideAccess:false request from
+ * setting it. This is the actual enforcement: Payload strips any client-submitted
+ * value for a field whose `access.create`/`access.update` returns false, before
+ * hooks run — but a `beforeChange` hook itself writes directly to the `data`
+ * object it returns, which is not subject to this same access check, so
+ * server-computed values still land correctly.
+ */
+export const serverControlledFieldAccess: FieldAccess = () => false
 
 /**
  * Collection-level `read` access for Releases/Tracks now that both have Payload
