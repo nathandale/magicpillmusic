@@ -1,12 +1,24 @@
 // DEMUPUB — Decentralized Music Publisher
 import type { CollectionConfig } from 'payload'
 
-import { anyone } from '../access/anyone'
 import { authenticated } from '../access/authenticated'
 import { isAdmin, publisherFieldAccess } from '../access/roles'
+import {
+  TRACK_READINESS_OPTIONS,
+  readPublishedOrAuthenticated,
+  serverControlledFieldAccess,
+  trackReadinessFieldAccess,
+} from '../access/workflowTransitions'
 import { GENRE_OPTIONS } from './Releases'
 import type { User } from '@/payload-types'
 import { fundingLinksField } from '../fields/fundingLinks'
+import { validateTrackReadinessTransition } from '../hooks/validatePublishTransition'
+import {
+  invalidateReleasePreviewOnTrackChange,
+  invalidateReleasePreviewOnTrackDelete,
+  protectPublishedReleaseTrackDelete,
+  protectPublishedReleaseTrackMutation,
+} from '../hooks/managePublicationState'
 
 export const Tracks: CollectionConfig = {
   slug: 'tracks',
@@ -16,10 +28,21 @@ export const Tracks: CollectionConfig = {
     group: 'DEMUPUB',
   },
   access: {
-    read: anyone,
+    // See Releases.ts for the same reasoning: drafts are enabled below, so anonymous
+    // reads must be gated to published documents only.
+    read: readPublishedOrAuthenticated,
     create: authenticated,
     update: authenticated,
     delete: ({ req: { user } }) => isAdmin(user as User | null),
+  },
+  versions: {
+    // Deliberately no `schedulePublish` here — tracks don't schedule
+    // independently; the parent Release is the sole authority on public visibility
+    // and coordinated publication (decision 5, 2026-09-17).
+    drafts: {
+      autosave: { interval: 100 },
+    },
+    maxPerDoc: 50,
   },
   fields: [
     {
@@ -120,6 +143,39 @@ export const Tracks: CollectionConfig = {
       },
     },
     {
+      name: 'year',
+      type: 'number',
+      min: 1900,
+      max: 2100,
+      admin: {
+        description: 'Year this song was released. Shown as a small © line in the MY RADIO info panel.',
+        step: 1,
+      },
+    },
+    {
+      name: 'songwriters',
+      type: 'text',
+      maxLength: 300,
+      admin: {
+        description: 'Songwriter(s), comma-separated. Shown on the back of the artwork in MY RADIO.',
+      },
+    },
+    {
+      name: 'personnel',
+      type: 'textarea',
+      maxLength: 1500,
+      admin: {
+        description: 'Musicians and what they played — one per line. Shown on the back of the artwork.',
+      },
+    },
+    {
+      name: 'story',
+      type: 'textarea',
+      admin: {
+        description: 'Free text about this song. Shown on the back of the artwork; scrolls if long.',
+      },
+    },
+    {
       name: 'hideFunding',
       type: 'checkbox',
       defaultValue: false,
@@ -178,21 +234,113 @@ export const Tracks: CollectionConfig = {
       name: 'guid',
       type: 'text',
       unique: true,
+      access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
       admin: {
         position: 'sidebar',
         readOnly: true,
         description: 'Stable feed GUID (auto-generated)',
       },
     },
+    // ── Signal Card publishing fields (ND-MR-001) ──
+    {
+      name: 'shareId',
+      type: 'text',
+      unique: true,
+      access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
+      admin: {
+        position: 'sidebar',
+        readOnly: true,
+        description: 'Immutable, human-safe public track ID (auto-generated from the GUID). Never derived from the title alone.',
+      },
+    },
+    {
+      name: 'shareExcerpt',
+      type: 'text',
+      maxLength: 200,
+      admin: { description: 'Optional bounded track-specific share copy.' },
+    },
+    {
+      name: 'lyricsStatus',
+      type: 'select',
+      defaultValue: 'missing',
+      options: [
+        { label: 'Missing', value: 'missing' },
+        { label: 'Draft', value: 'draft' },
+        { label: 'Verified', value: 'verified' },
+        { label: 'Not applicable', value: 'not_applicable' },
+      ],
+      admin: {
+        position: 'sidebar',
+        description: 'Prevents accidental publication of unverified lyrics — checked by the publish-validation hook.',
+      },
+    },
+    {
+      name: 'rightsConfirmed',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        position: 'sidebar',
+        description: 'Attestation that audio, artwork, lyrics, and promotional use are authorized.',
+      },
+    },
+    {
+      name: 'rightsConfirmedAt',
+      type: 'date',
+      access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    {
+      name: 'rightsConfirmedBy',
+      type: 'relationship',
+      relationTo: 'users',
+      access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    // Track readiness (decision 5) — deliberately smaller than the Release's
+    // workflowState. See src/access/workflowTransitions.ts.
+    {
+      name: 'trackReadiness',
+      type: 'select',
+      defaultValue: 'draft',
+      options: TRACK_READINESS_OPTIONS,
+      access: {
+        create: trackReadinessFieldAccess,
+        update: trackReadinessFieldAccess,
+      },
+      admin: {
+        position: 'sidebar',
+        description: 'This track’s own data/audio readiness. Says nothing about public visibility — that is the parent Release’s decision alone.',
+      },
+    },
   ],
   hooks: {
     beforeChange: [
-      ({ data, operation }) => {
+      protectPublishedReleaseTrackMutation,
+      ({ data, operation, req, originalDoc }) => {
         if (operation === 'create' && !data?.guid) {
           data!.guid = `mpm-track-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
         }
+        // shareId defaults from the (by-then-generated) guid, mirroring the existing
+        // guid-generation pattern — never null on a saved track, never derived
+        // from the title alone.
+        if (!data?.shareId) {
+          data!.shareId = data?.guid || `mpm-track-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        }
+        const wasConfirmed = Boolean(originalDoc?.rightsConfirmed)
+        if (data?.rightsConfirmed && !wasConfirmed) {
+          data!.rightsConfirmedAt = new Date().toISOString()
+          data!.rightsConfirmedBy = req.user?.id ?? data?.rightsConfirmedBy
+        }
         return data
       },
+      validateTrackReadinessTransition,
     ],
+    // A track's own audio/order/identity changing invalidates its parent
+    // Release's preview attestation too — the attestation depends on the
+    // track-set fingerprint, which only these hooks (not Releases' own) can see
+    // changing. See src/hooks/managePublicationState.ts.
+    afterChange: [invalidateReleasePreviewOnTrackChange],
+    beforeDelete: [protectPublishedReleaseTrackDelete],
+    afterDelete: [invalidateReleasePreviewOnTrackDelete],
   },
 }

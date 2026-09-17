@@ -21,12 +21,21 @@ export const GET = async (_request: Request, context: RouteContext) => {
   const releaseResult = await payload.find({
     collection: 'releases',
     where: {
-      slug: {
-        equals: slug,
-      },
-      status: {
-        equals: 'published',
-      },
+      // Three independent conditions must ALL hold for public release, per
+      // review: the Payload published version (`_status`), the controlled
+      // workflow state, and the (now workflowState-derived, never independently
+      // settable — see src/hooks/managePublicationState.ts) publicVisibility
+      // field. `status` (legacy) is kept in sync with workflowState by the same
+      // hook, so it's redundant here rather than load-bearing, but is left in
+      // place as a fourth belt-and-suspenders check since existing MYRADIO
+      // consumers may still reason about it.
+      and: [
+        { slug: { equals: slug } },
+        { _status: { equals: 'published' } },
+        { workflowState: { equals: 'published' } },
+        { status: { equals: 'published' } },
+        { 'distribution.publicVisibility': { equals: 'public' } },
+      ],
     },
     depth: 2,
     limit: 1,

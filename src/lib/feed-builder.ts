@@ -1,4 +1,5 @@
 import type { Artist, PublishingSetting, Release, Track, ValueSplit } from '../payload-types'
+import { buildThemeConfigPayload } from './release-theme'
 
 type ReleaseWithFeedFields = Release & {
   medium?: 'music' | 'video' | null
@@ -7,6 +8,39 @@ type ReleaseWithFeedFields = Release & {
 
 type TrackWithFeedFields = Track & {
   guid?: string | null
+}
+
+// New in ND-MR-001, backward compatible by construction: every tag below is only
+// emitted when the corresponding field has a value, so a release saved before these
+// fields existed produces exactly the feed it always did. MYRADIO's adapter must
+// treat all of these as optional and fall back gracefully — see AUDIT-FINDINGS.md §8.
+type DistributionFields = {
+  releaseLane?: string | null
+  shadowPostUrl?: string | null
+  shadowPostSlug?: string | null
+  defaultShareTarget?: string | null
+  embedEnabled?: boolean | null
+  campaignKey?: string | null
+  analyticsSchemaVersion?: number | null
+}
+
+type ThemeExtensionFields = {
+  themeSchemaVersion?: number | null
+  themeRevision?: number | null
+  themeTokens?: Record<string, string | null | undefined> | null
+  themeAssets?: {
+    backgroundImage?: Track['artwork']
+    textureImage?: Track['artwork']
+    markImage?: Track['artwork']
+  } | null
+  themeOptions?: {
+    artworkTreatment?: string | null
+    typeTreatment?: string | null
+    surfaceTreatment?: string | null
+    motion?: string | null
+  } | null
+  signalCard?: { layout?: string | null; showArtwork?: boolean | null } | null
+  socialCard?: { layout?: string | null } | null
 }
 
 type ValueSplitWithFeedFields = ValueSplit
@@ -112,20 +146,66 @@ const optionalTag = (name: string, value: string): string => (value ? `    <${na
 /**
  * MY RADIO presentation fields, carried as <podcast:txt purpose="myradio:…">.
  * podcast:txt is the spec's free-form text slot; other clients ignore unknown purposes.
+ *
+ * Theme-config serialization itself (tokens/assets/options/signalCard/socialCard,
+ * versioned, allowlisted, size-bounded) lives in src/lib/release-theme.ts —
+ * buildThemeConfigPayload — shared with the checksum-pinned JSON Schema in
+ * src/schemas/release-theme.schema.json. This function only resolves the Media
+ * relationships to absolute URLs (feed-builder's own job, everywhere else in this
+ * file) before handing off to that shared, validated builder.
  */
-const myRadioTxtTags = (release: ReleaseWithFeedFields): string => {
-  const m = release.myradio
-  if (!m) return ''
+const myRadioTxtTags = (release: ReleaseWithFeedFields, baseUrl: string): string => {
+  const m = release.myradio as (typeof release.myradio & ThemeExtensionFields) | null | undefined
+  const d = (release as ReleaseWithFeedFields & { distribution?: DistributionFields | null }).distribution
+  if (!m && !d) return ''
+
   const tag = (purpose: string, value: string | null | undefined): string =>
     value ? `    <podcast:txt purpose="myradio:${purpose}">${xmlText(String(value))}</podcast:txt>\n` : ''
-  return (
-    tag('kicker', m.kicker) +
-    tag('theme', m.theme) +
-    tag('heartUrl', m.heartUrl) +
-    tag('token', m.token) +
-    (m.isDefault ? tag('default', 'true') : '') +
-    (m.terrestrialHandoff ? tag('terrestrialHandoff', 'true') : '')
-  )
+  const cdataTag = (purpose: string, value: string | null | undefined): string =>
+    value ? `    <podcast:txt purpose="myradio:${purpose}">${toCdata(value)}</podcast:txt>\n` : ''
+
+  const legacy = m
+    ? tag('kicker', m.kicker) +
+      tag('theme', m.theme) +
+      tag('heartUrl', m.heartUrl) +
+      tag('token', m.token) +
+      (m.isDefault ? tag('default', 'true') : '') +
+      (m.terrestrialHandoff ? tag('terrestrialHandoff', 'true') : '')
+    : ''
+
+  const themeConfigResult = m
+    ? buildThemeConfigPayload({
+        themeSchemaVersion: m.themeSchemaVersion,
+        themeTokens: m.themeTokens,
+        themeAssets: {
+          backgroundImage: mediaUrl(m.themeAssets?.backgroundImage, baseUrl) || null,
+          textureImage: mediaUrl(m.themeAssets?.textureImage, baseUrl) || null,
+          markImage: mediaUrl(m.themeAssets?.markImage, baseUrl) || null,
+        },
+        themeOptions: m.themeOptions,
+        signalCard: m.signalCard,
+        socialCard: m.socialCard,
+      })
+    : null
+  const themeConfig = themeConfigResult?.json ?? null
+
+  const signalCard = d
+    ? tag('release-lane', d.releaseLane) +
+      tag('shadow-url', d.shadowPostUrl) +
+      tag('shadow-slug', d.shadowPostSlug) +
+      tag('share-target', d.defaultShareTarget) +
+      (d.embedEnabled ? tag('embed-enabled', 'true') : '') +
+      tag('campaign-key', d.campaignKey) +
+      (d.analyticsSchemaVersion ? tag('analytics-schema', String(d.analyticsSchemaVersion)) : '')
+    : ''
+
+  const themeMeta = m
+    ? (m.themeSchemaVersion ? tag('theme-schema', String(m.themeSchemaVersion)) : '') +
+      (m.themeRevision ? tag('theme-revision', String(m.themeRevision)) : '') +
+      cdataTag('theme-config', themeConfig)
+    : ''
+
+  return legacy + signalCard + themeMeta
 }
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -151,6 +231,33 @@ const fundingTagsFor = (links: FundingEntry[] | null | undefined, baseUrl: strin
       return `${indent}<podcast:funding url="${xmlAttr(url)}"${provider}>${xmlText(label)}</podcast:funding>\n`
     })
     .join('')
+
+/**
+ * Per-song liner notes for MY RADIO's back-of-artwork view, carried as
+ * <podcast:txt purpose="myradio:…">. Other P2.0 clients ignore unknown purposes.
+ */
+const trackNotesTags = (track: {
+  year?: number | null
+  songwriters?: string | null
+  personnel?: string | null
+  story?: string | null
+  shareId?: string | null
+  shareExcerpt?: string | null
+}): string => {
+  const tag = (purpose: string, value: string | null | undefined): string =>
+    value && String(value).trim()
+      ? `      <podcast:txt purpose="myradio:${purpose}">${xmlText(String(value))}</podcast:txt>\n`
+      : ''
+  const year = track.year ? tag('year', String(track.year)) : ''
+  return (
+    year +
+    tag('songwriters', track.songwriters) +
+    tag('personnel', track.personnel) +
+    tag('story', track.story) +
+    tag('share-id', track.shareId) +
+    tag('share-excerpt', track.shareExcerpt)
+  )
+}
 
 export const buildReleaseFeedXml = ({
   release,
@@ -252,6 +359,16 @@ export const buildReleaseFeedXml = ({
         ((track as TrackWithFeedFields & { hideFunding?: boolean }).hideFunding
           ? '      <podcast:txt purpose="myradio:funding">off</podcast:txt>\n'
           : fundingTagsFor((track as TrackWithFeedFields & { fundingLinks?: FundingEntry[] }).fundingLinks, normalizedBaseUrl, '      ')) +
+        trackNotesTags(
+          track as TrackWithFeedFields & {
+            year?: number
+            songwriters?: string
+            personnel?: string
+            story?: string
+            shareId?: string
+            shareExcerpt?: string
+          },
+        ) +
         '    </item>\n'
       )
     })
@@ -291,7 +408,7 @@ export const buildReleaseFeedXml = ({
       ? `    <podcast:socialInteract platform="nostr" url="${xmlAttr(resolveAbsoluteUrl(release.socialUrl, normalizedBaseUrl))}" />\n`
       : '') +
     (release.upc ? `    <podcast:txt purpose="upc">${xmlText(release.upc)}</podcast:txt>\n` : '') +
-    myRadioTxtTags(release) +
+    myRadioTxtTags(release, normalizedBaseUrl) +
     (coverImageUrl ? `    <itunes:image href="${xmlAttr(coverImageUrl)}" />\n` : '') +
     (coverImageUrl
       ? '    <image>\n' +

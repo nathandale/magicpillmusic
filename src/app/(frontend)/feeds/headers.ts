@@ -12,5 +12,20 @@ export const feedResponseHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
-  'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
+  // Short cache: keeps the feed fast for listeners while letting publisher edits
+  // (titles, credits, order…) appear within ~15s instead of a couple of minutes.
+  'Cache-Control': 'public, max-age=15, stale-while-revalidate=30',
+}
+
+/**
+ * The release-feed preview route (EO §7.7) is the opposite of the public feed in
+ * every way that matters: it can contain draft/unpublished content, it's reached
+ * with a scoped one-time-ish token rather than being universally public, and that
+ * token must never be cached or replayed from a shared cache. No open CORS either —
+ * this is not meant for arbitrary public clients, only whoever holds the token.
+ */
+export const feedPreviewResponseHeaders: Record<string, string> = {
+  'Content-Type': 'application/rss+xml; charset=UTF-8',
+  'Cache-Control': 'no-store',
+  'X-Robots-Tag': 'noindex, nofollow',
 }

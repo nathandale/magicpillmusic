@@ -22,10 +22,15 @@ export const GET = async () => {
   const [releasesResult, settings] = await Promise.all([
     payload.find({
       collection: 'releases',
+      // See src/app/(frontend)/feeds/[slug]/route.ts for the reasoning — all four
+      // conditions must hold for a release to appear in the public feed.
       where: {
-        status: {
-          equals: 'published',
-        },
+        and: [
+          { _status: { equals: 'published' } },
+          { workflowState: { equals: 'published' } },
+          { status: { equals: 'published' } },
+          { 'distribution.publicVisibility': { equals: 'public' } },
+        ],
       },
       sort: ['myradio.order', '-releaseDate'],
       depth: 0,
