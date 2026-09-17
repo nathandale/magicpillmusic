@@ -6,12 +6,14 @@ import { isAdmin, publisherFieldAccess } from '../access/roles'
 import {
   TRACK_READINESS_OPTIONS,
   readPublishedOrAuthenticated,
+  serverControlledFieldAccess,
   trackReadinessFieldAccess,
 } from '../access/workflowTransitions'
 import { GENRE_OPTIONS } from './Releases'
 import type { User } from '@/payload-types'
 import { fundingLinksField } from '../fields/fundingLinks'
 import { validateTrackReadinessTransition } from '../hooks/validatePublishTransition'
+import { invalidateReleasePreviewOnTrackChange, invalidateReleasePreviewOnTrackDelete } from '../hooks/managePublicationState'
 
 export const Tracks: CollectionConfig = {
   slug: 'tracks',
@@ -227,6 +229,7 @@ export const Tracks: CollectionConfig = {
       name: 'guid',
       type: 'text',
       unique: true,
+      access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
       admin: {
         position: 'sidebar',
         readOnly: true,
@@ -238,6 +241,7 @@ export const Tracks: CollectionConfig = {
       name: 'shareId',
       type: 'text',
       unique: true,
+      access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
       admin: {
         position: 'sidebar',
         readOnly: true,
@@ -277,12 +281,14 @@ export const Tracks: CollectionConfig = {
     {
       name: 'rightsConfirmedAt',
       type: 'date',
+      access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
       admin: { position: 'sidebar', readOnly: true },
     },
     {
       name: 'rightsConfirmedBy',
       type: 'relationship',
       relationTo: 'users',
+      access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
       admin: { position: 'sidebar', readOnly: true },
     },
     // Track readiness (decision 5) — deliberately smaller than the Release's
@@ -293,6 +299,7 @@ export const Tracks: CollectionConfig = {
       defaultValue: 'draft',
       options: TRACK_READINESS_OPTIONS,
       access: {
+        create: trackReadinessFieldAccess,
         update: trackReadinessFieldAccess,
       },
       admin: {
@@ -322,5 +329,11 @@ export const Tracks: CollectionConfig = {
       },
       validateTrackReadinessTransition,
     ],
+    // A track's own audio/order/identity changing invalidates its parent
+    // Release's preview attestation too — the attestation depends on the
+    // track-set fingerprint, which only these hooks (not Releases' own) can see
+    // changing. See src/hooks/managePublicationState.ts.
+    afterChange: [invalidateReleasePreviewOnTrackChange],
+    afterDelete: [invalidateReleasePreviewOnTrackDelete],
   },
 }

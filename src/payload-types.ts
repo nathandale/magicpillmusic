@@ -1038,7 +1038,7 @@ export interface Release {
      */
     themeSchemaVersion?: number | null;
     /**
-     * Increments whenever the published theme or its assets change. Drives cache invalidation, and invalidates any stored preview attestation or analytics receipt for this release.
+     * Managed by src/hooks/managePublicationState.ts — increments whenever the theme-identity fields actually change. Drives cache invalidation, and invalidates any stored preview attestation for this release.
      */
     themeRevision?: number | null;
     /**
@@ -1190,7 +1190,7 @@ export interface Release {
      */
     releaseLane?: ('current' | 'archive' | 'catalog') | null;
     /**
-     * Separate from the editing workflow: only "public" releases are intended to appear in the public publisher feed.
+     * Derived from workflowState — becomes "public" only when workflowState reaches "published". Not independently editable.
      */
     publicVisibility?: ('preview' | 'public' | 'archived') | null;
     /**
@@ -1231,7 +1231,7 @@ export interface Release {
      */
     themeRevisionAt?: number | null;
     /**
-     * Composite fingerprint of track IDs, durations, and audio identifiers at the moment of attestation.
+     * Composite fingerprint of track identity, order, audio source, and duration at the moment of attestation (src/lib/trackFingerprint.ts).
      */
     trackFingerprintAt?: string | null;
     playerVersionAt?: string | null;
@@ -1262,7 +1262,7 @@ export interface Release {
    */
   releaseGuid?: string | null;
   /**
-   * Legacy two-value status. Kept as-is for backward compatibility with the existing feed routes — do not remove. `workflowState` below is the controlled, validated state for the Signal Card publishing system.
+   * Legacy two-value status, kept for the existing feed routes. Derived from workflowState — not independently editable. `workflowState` below is the controlled, validated state for the Signal Card publishing system.
    */
   status?: ('draft' | 'published') | null;
   /**
@@ -1301,6 +1301,14 @@ export interface AnalyticsVerificationReceipt {
   attemptedBy?: (number | null) | User;
   environment: string;
   outcome: 'pass' | 'fail';
+  /**
+   * Snapshot of the release GUID at the moment of this attempt.
+   */
+  releaseGuid?: string | null;
+  /**
+   * Snapshot of the track-set fingerprint (src/lib/trackFingerprint.ts) at the moment of this attempt.
+   */
+  trackFingerprint?: string | null;
   schemaVersion?: number | null;
   playerVersion?: string | null;
   themeVersion?: number | null;
@@ -2447,6 +2455,8 @@ export interface AnalyticsVerificationReceiptsSelect<T extends boolean = true> {
   attemptedBy?: T;
   environment?: T;
   outcome?: T;
+  releaseGuid?: T;
+  trackFingerprint?: T;
   schemaVersion?: T;
   playerVersion?: T;
   themeVersion?: T;

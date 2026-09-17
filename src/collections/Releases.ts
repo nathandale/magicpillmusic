@@ -6,12 +6,14 @@ import { isAdmin } from '../access/roles'
 import {
   RELEASE_WORKFLOW_STATE_OPTIONS,
   readPublishedOrAuthenticated,
+  serverControlledFieldAccess,
   workflowStateFieldAccess,
 } from '../access/workflowTransitions'
 import type { User } from '@/payload-types'
 import { fundingLinksField } from '../fields/fundingLinks'
 import { RELEASE_THEME_SCHEMA_VERSION, RELEASE_THEME_TOKEN_FIELDS } from '../lib/release-theme'
 import { validateReleasePublishTransition } from '../hooks/validatePublishTransition'
+import { manageReleaseServerFields } from '../hooks/managePublicationState'
 
 export const GENRE_OPTIONS = [
   { label: 'Alternative', value: 'Alternative' },
@@ -252,6 +254,7 @@ export const Releases: CollectionConfig = {
           name: 'themeSchemaVersion',
           type: 'number',
           defaultValue: RELEASE_THEME_SCHEMA_VERSION,
+          access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
           admin: {
             readOnly: true,
             description: 'Version of the shared release-theme schema this record’s theme fields conform to (src/schemas/release-theme.schema.json).',
@@ -261,9 +264,10 @@ export const Releases: CollectionConfig = {
           name: 'themeRevision',
           type: 'number',
           defaultValue: 0,
+          access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
           admin: {
             readOnly: true,
-            description: 'Increments whenever the published theme or its assets change. Drives cache invalidation, and invalidates any stored preview attestation or analytics receipt for this release.',
+            description: 'Managed by src/hooks/managePublicationState.ts — increments whenever the theme-identity fields actually change. Drives cache invalidation, and invalidates any stored preview attestation for this release.',
           },
         },
         {
@@ -463,6 +467,12 @@ export const Releases: CollectionConfig = {
           name: 'publicVisibility',
           type: 'select',
           defaultValue: 'preview',
+          // Fully derived from workflowState by src/hooks/managePublicationState.ts
+          // — never independently client-settable. Before this lock, any
+          // authenticated user could set publicVisibility: 'public' directly
+          // without ever advancing workflowState through the validation gate,
+          // which would have put an unfinished release in the public feed.
+          access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
           options: [
             { label: 'Preview', value: 'preview' },
             { label: 'Public', value: 'public' },
@@ -470,7 +480,8 @@ export const Releases: CollectionConfig = {
           ],
           admin: {
             position: 'sidebar',
-            description: 'Separate from the editing workflow: only "public" releases are intended to appear in the public publisher feed.',
+            readOnly: true,
+            description: 'Derived from workflowState — becomes "public" only when workflowState reaches "published". Not independently editable.',
           },
         },
         {
@@ -558,12 +569,14 @@ export const Releases: CollectionConfig = {
         {
           name: 'attestedAt',
           type: 'date',
+          access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
           admin: { readOnly: true, position: 'sidebar' },
         },
         {
           name: 'attestedBy',
           type: 'relationship',
           relationTo: 'users',
+          access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
           admin: { readOnly: true, position: 'sidebar' },
         },
         {
@@ -571,24 +584,28 @@ export const Releases: CollectionConfig = {
           // length inside the versions table — see the dbName comment above.
           name: 'themeRevisionAt',
           type: 'number',
+          access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
           admin: { readOnly: true, description: 'themeRevision value at the moment of attestation.' },
         },
         {
           // Shortened from `trackSetFingerprintAtAttestation`.
           name: 'trackFingerprintAt',
           type: 'text',
-          admin: { readOnly: true, description: 'Composite fingerprint of track IDs, durations, and audio identifiers at the moment of attestation.' },
+          access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
+          admin: { readOnly: true, description: 'Composite fingerprint of track identity, order, audio source, and duration at the moment of attestation (src/lib/trackFingerprint.ts).' },
         },
         {
           // Shortened from `playerVersionAtAttestation`.
           name: 'playerVersionAt',
           type: 'text',
+          access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
           admin: { readOnly: true },
         },
         {
           // Shortened from `analyticsSchemaVersionAtAttestation`.
           name: 'schemaVersionAt',
           type: 'number',
+          access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
           admin: { readOnly: true },
         },
       ],
@@ -611,6 +628,13 @@ export const Releases: CollectionConfig = {
           name: 'latest',
           type: 'relationship',
           relationTo: 'analytics-verification-receipts',
+          // Only ever set by AnalyticsVerificationReceipts' own afterChange hook
+          // (a trusted internal Local API call) — never client-settable, which
+          // matters here specifically: this is the pointer the publish-validation
+          // hook trusts to find "the" passing receipt. If a client could set this
+          // directly, they could point it at any receipt regardless of which
+          // release it actually belongs to.
+          access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
           admin: { readOnly: true, position: 'sidebar' },
         },
         {
@@ -618,12 +642,12 @@ export const Releases: CollectionConfig = {
           type: 'group',
           label: 'Last known good',
           fields: [
-            { name: 'verifiedAt', type: 'date', admin: { readOnly: true } },
-            { name: 'verifiedBy', type: 'relationship', relationTo: 'users', admin: { readOnly: true } },
-            { name: 'environment', type: 'text', admin: { readOnly: true } },
-            { name: 'schemaVersion', type: 'number', admin: { readOnly: true } },
-            { name: 'playerVersion', type: 'text', admin: { readOnly: true } },
-            { name: 'themeVersion', type: 'number', admin: { readOnly: true } },
+            { name: 'verifiedAt', type: 'date', access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess }, admin: { readOnly: true } },
+            { name: 'verifiedBy', type: 'relationship', relationTo: 'users', access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess }, admin: { readOnly: true } },
+            { name: 'environment', type: 'text', access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess }, admin: { readOnly: true } },
+            { name: 'schemaVersion', type: 'number', access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess }, admin: { readOnly: true } },
+            { name: 'playerVersion', type: 'text', access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess }, admin: { readOnly: true } },
+            { name: 'themeVersion', type: 'number', access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess }, admin: { readOnly: true } },
             {
               name: 'sampleEventIds',
               type: 'array',
@@ -632,6 +656,7 @@ export const Releases: CollectionConfig = {
               // sampleEventIds) exceeds Postgres's 63-char identifier limit without
               // this override — same issue as the theme-option selects above.
               dbName: 'releases_av_sample_events',
+              access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
               admin: { readOnly: true },
               fields: [{ name: 'eventId', type: 'text' }],
             },
@@ -662,6 +687,10 @@ export const Releases: CollectionConfig = {
       name: 'releaseGuid',
       type: 'text',
       unique: true,
+      // Server-computed once on create by this collection's own beforeChange hook,
+      // never client-settable — a direct write here could otherwise let a client
+      // collide/spoof a stable public identifier.
+      access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
       admin: {
         position: 'sidebar',
         readOnly: true,
@@ -672,13 +701,19 @@ export const Releases: CollectionConfig = {
       name: 'status',
       type: 'select',
       defaultValue: 'draft',
+      // Fully derived from workflowState by src/hooks/managePublicationState.ts —
+      // see the same note on distribution.publicVisibility above. Before this
+      // lock, this was independently client-settable, i.e. "the approved role/
+      // state transition" could be bypassed entirely by just PATCHing status.
+      access: { create: serverControlledFieldAccess, update: serverControlledFieldAccess },
       options: [
         { label: 'Draft', value: 'draft' },
         { label: 'Published', value: 'published' },
       ],
       admin: {
         position: 'sidebar',
-        description: 'Legacy two-value status. Kept as-is for backward compatibility with the existing feed routes — do not remove. `workflowState` below is the controlled, validated state for the Signal Card publishing system.',
+        readOnly: true,
+        description: 'Legacy two-value status, kept for the existing feed routes. Derived from workflowState — not independently editable. `workflowState` below is the controlled, validated state for the Signal Card publishing system.',
       },
     },
     // Controlled workflow state (EO §7.5). Field-level access enforces decision 2's
@@ -690,6 +725,7 @@ export const Releases: CollectionConfig = {
       defaultValue: 'draft',
       options: RELEASE_WORKFLOW_STATE_OPTIONS,
       access: {
+        create: workflowStateFieldAccess,
         update: workflowStateFieldAccess,
       },
       admin: {
@@ -707,6 +743,7 @@ export const Releases: CollectionConfig = {
         }
         return data
       },
+      manageReleaseServerFields,
       validateReleasePublishTransition,
     ],
   },
