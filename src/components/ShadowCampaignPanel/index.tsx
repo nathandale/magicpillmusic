@@ -47,14 +47,19 @@ const copyButtonStyle: React.CSSProperties = {
   cursor: 'pointer',
 }
 
+type VerificationResponse = {
+  outcome?: 'pass' | 'fail'
+  receiptId?: string | number
+  missingEvents?: string[]
+  notes?: string
+  error?: string
+}
+
 /**
- * "SHADOW & Campaign" panel (EO §7.9). Workstream 1A ships the parts that need only
- * DEMU's own data: the computed story/listen URLs, the SHADOW marker generator (pure
- * client-side templating — no network call), and an honest, disabled state for the
- * two actions that genuinely cannot work yet ("Run player preview", "Verify
- * analytics") because they depend on MYRADIO/PostHog infrastructure that doesn't
- * exist until Workstream 1B. Those buttons are disabled and say so — they do not
- * pretend to succeed.
+ * "SHADOW & Campaign" panel (EO §7.9). The preview action remains disabled until
+ * the automated preview runner exists. The
+ * analytics action is live: it asks the authenticated DEMU server to query PostHog,
+ * then records an append-only receipt for the result.
  */
 export const ShadowCampaignPanel: UIFieldClientComponent = () => {
   const { id } = useDocumentInfo()
@@ -75,6 +80,8 @@ export const ShadowCampaignPanel: UIFieldClientComponent = () => {
 
   const [tracks, setTracks] = useState<TrackRow[]>([])
   const [copiedId, setCopiedId] = useState<string | number | null>(null)
+  const [verification, setVerification] = useState<VerificationResponse | null>(null)
+  const [verifying, setVerifying] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -121,6 +128,27 @@ export const ShadowCampaignPanel: UIFieldClientComponent = () => {
     },
     [slug, shadowPostSlug],
   )
+
+  const verifyAnalytics = useCallback(async () => {
+    if (!id || verifying) return
+    setVerifying(true)
+    setVerification(null)
+    try {
+      const response = await fetch('/api/analytics-verification', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ releaseId: id }),
+      })
+      const result = (await response.json()) as VerificationResponse
+      setVerification(result)
+      if (response.ok && result.outcome === 'pass') window.setTimeout(() => window.location.reload(), 1200)
+    } catch {
+      setVerification({ error: 'The verification request failed. No publishing state was changed.' })
+    } finally {
+      setVerifying(false)
+    }
+  }, [id, verifying])
 
   return (
     <div style={panelStyle}>
@@ -177,15 +205,37 @@ export const ShadowCampaignPanel: UIFieldClientComponent = () => {
               <span style={{ color: 'var(--theme-elevation-500)' }}> — last verified {new Date(analyticsVerifiedAt).toLocaleString()}</span>
             ) : null}
           </span>
-          <button type="button" style={disabledButtonStyle} disabled title="PostHog analytics gate not yet available (Workstream 1B/4)">
-            Not yet available
+          <button
+            type="button"
+            style={id && !verifying ? copyButtonStyle : disabledButtonStyle}
+            disabled={!id || verifying}
+            onClick={verifyAnalytics}
+            title={id ? 'Query the production PostHog journey and record an append-only receipt' : 'Save the release first'}
+          >
+            {verifying ? 'Verifying…' : 'Verify analytics'}
           </button>
         </div>
+        {verification ? (
+          <p
+            role="status"
+            style={{
+              fontSize: '0.75rem',
+              color: verification.outcome === 'pass' ? 'var(--theme-success-500)' : 'var(--theme-error-500)',
+              marginTop: 8,
+              marginBottom: 0,
+            }}
+          >
+            {verification.outcome === 'pass' ? 'Verified. ' : 'Not verified. '}
+            {verification.notes || verification.error}
+            {verification.missingEvents?.length ? ` Missing: ${verification.missingEvents.join(', ')}.` : ''}
+            {verification.receiptId ? ` Receipt #${verification.receiptId}.` : ''}
+          </p>
+        ) : null}
         <p style={{ fontSize: '0.75rem', color: 'var(--theme-elevation-400)', marginTop: 8, marginBottom: 0 }}>
-          These two actions are intentionally disabled. They depend on MYRADIO preview routes and the PostHog analytics
-          gate, neither of which exist yet (Workstream 1B). Publishing to &ldquo;Analytics verified&rdquo;, &ldquo;Scheduled&rdquo;, or
-          &ldquo;Published&rdquo; will be blocked with a clear error until a real preview and a real passing analytics receipt
-          exist for this release — see src/hooks/validatePublishTransition.ts.
+          Player preview remains unavailable until the automated preview runner is complete. Analytics verification now
+          checks the production SHADOW → embedded MYRADIO journey in PostHog and records every attempt. Publishing to
+          &ldquo;Analytics verified&rdquo;, &ldquo;Scheduled&rdquo;, or &ldquo;Published&rdquo; remains blocked until both a current preview
+          attestation and a matching passing analytics receipt exist.
         </p>
       </div>
     </div>
