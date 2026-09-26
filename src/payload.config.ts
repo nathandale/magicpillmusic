@@ -19,6 +19,7 @@ import { AnalyticsVerificationReceipts } from './collections/AnalyticsVerificati
 import { Footer } from './Footer/config'
 import { Header } from './Header/config'
 import { PublishingSettings } from './globals/PublishingSettings'
+import { MyRadioSettings } from './globals/MyRadioSettings'
 import { plugins } from './plugins'
 import { defaultLexical } from '@/fields/defaultLexical'
 import { getServerSideURL } from './utilities/getURL'
@@ -102,7 +103,7 @@ export default buildConfig({
     AnalyticsVerificationReceipts,
   ],
   cors: [getServerSideURL()].filter(Boolean),
-  globals: [Header, Footer, PublishingSettings],
+  globals: [Header, Footer, PublishingSettings, MyRadioSettings],
   plugins,
   secret: process.env.PAYLOAD_SECRET,
   sharp,

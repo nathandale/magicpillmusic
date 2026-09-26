@@ -125,11 +125,13 @@ export interface Config {
     header: Header;
     footer: Footer;
     'publishing-settings': PublishingSetting;
+    'myradio-settings': MyradioSetting;
   };
   globalsSelect: {
     header: HeaderSelect<false> | HeaderSelect<true>;
     footer: FooterSelect<false> | FooterSelect<true>;
     'publishing-settings': PublishingSettingsSelect<false> | PublishingSettingsSelect<true>;
+    'myradio-settings': MyradioSettingsSelect<false> | MyradioSettingsSelect<true>;
   };
   locale: null;
   widgets: {
@@ -1182,6 +1184,55 @@ export interface Release {
     terrestrialHandoff?: boolean | null;
   };
   /**
+   * The link-preview image for this release’s songs in Signal, iMessage, Facebook and other apps. Each card uses its own song’s artwork. Songs can override it on their own Share card. Editable while the release is live.
+   */
+  shareCard?: {
+    /**
+     * Card design.
+     */
+    layout?: ('broadcast' | 'poster' | 'terrestrial' | 'image') | null;
+    /**
+     * Small line above the title. Use {track}, {artist}, {release} or {year}.
+     */
+    kicker?: string | null;
+    /**
+     * Beacon and kicker color.
+     */
+    accentColor?: string | null;
+    /**
+     * Main title on the card. Use {track}, {artist}, {release} or {year}.
+     */
+    headline?: string | null;
+    /**
+     * Line under the title. Use {track}, {artist}, {release} or {year}.
+     */
+    subline?: string | null;
+    /**
+     * The MY RADIO wordmark with its beacon.
+     */
+    showWordmark?: ('show' | 'hide') | null;
+    /**
+     * Card-only artwork for every song. Leave blank so each card uses its own song’s artwork.
+     */
+    artwork?: (number | null) | Media;
+    /**
+     * Background image. Blank uses the blurred artwork (Broadcast) or the TERRESTRIAL night sky.
+     */
+    background?: (number | null) | Media;
+    /**
+     * A finished 1200×630 card. It is cropped to fit if the shape differs.
+     */
+    image?: (number | null) | Media;
+    /**
+     * Bold title under the card. Use {track}, {artist}, {release} or {year}. Blank uses “{track} by {artist} | MY RADIO”.
+     */
+    linkTitle?: string | null;
+    /**
+     * Short description some apps show under the title. Use {track}, {artist}, {release} or {year}. Blank uses the song’s share excerpt, then the release description.
+     */
+    linkDescription?: string | null;
+  };
+  /**
    * SHADOW story relationship and campaign controls for the Signal Card publishing system. Carried in the feed as <podcast:txt purpose="myradio:…">.
    */
   distribution?: {
@@ -1459,6 +1510,56 @@ export interface Track {
    * Optional bounded track-specific share copy.
    */
   shareExcerpt?: string | null;
+  /**
+   * The link-preview image for this song. Editable while the release is live.
+   */
+  shareCard?: {
+    useReleaseDefault?: boolean | null;
+    /**
+     * Card design. Leave blank to use the release value.
+     */
+    layout?: ('broadcast' | 'poster' | 'terrestrial' | 'image') | null;
+    /**
+     * Small line above the title. Use {track}, {artist}, {release} or {year}. Leave blank to use the release value.
+     */
+    kicker?: string | null;
+    /**
+     * Beacon and kicker color. Leave blank to use the release value.
+     */
+    accentColor?: string | null;
+    /**
+     * Main title on the card. Use {track}, {artist}, {release} or {year}. Leave blank to use the release value.
+     */
+    headline?: string | null;
+    /**
+     * Line under the title. Use {track}, {artist}, {release} or {year}. Leave blank to use the release value.
+     */
+    subline?: string | null;
+    /**
+     * The MY RADIO wordmark with its beacon. Leave blank to use the release value.
+     */
+    showWordmark?: ('show' | 'hide') | null;
+    /**
+     * Card-only artwork. Leave blank to use this song’s artwork.
+     */
+    artwork?: (number | null) | Media;
+    /**
+     * Background image. Blank uses the blurred artwork (Broadcast) or the TERRESTRIAL night sky. Leave blank to use the release value.
+     */
+    background?: (number | null) | Media;
+    /**
+     * A finished 1200×630 card. It is cropped to fit if the shape differs.
+     */
+    image?: (number | null) | Media;
+    /**
+     * Bold title under the card. Use {track}, {artist}, {release} or {year}. Blank uses “{track} by {artist} | MY RADIO”. Leave blank to use the release value.
+     */
+    linkTitle?: string | null;
+    /**
+     * Short description some apps show under the title. Use {track}, {artist}, {release} or {year}. Blank uses the song’s share excerpt, then the release description. Leave blank to use the release value.
+     */
+    linkDescription?: string | null;
+  };
   /**
    * Prevents accidental publication of unverified lyrics — checked by the publish-validation hook.
    */
@@ -2305,6 +2406,21 @@ export interface ReleasesSelect<T extends boolean = true> {
         isDefault?: T;
         terrestrialHandoff?: T;
       };
+  shareCard?:
+    | T
+    | {
+        layout?: T;
+        kicker?: T;
+        accentColor?: T;
+        headline?: T;
+        subline?: T;
+        showWordmark?: T;
+        artwork?: T;
+        background?: T;
+        image?: T;
+        linkTitle?: T;
+        linkDescription?: T;
+      };
   distribution?:
     | T
     | {
@@ -2402,6 +2518,22 @@ export interface TracksSelect<T extends boolean = true> {
   guid?: T;
   shareId?: T;
   shareExcerpt?: T;
+  shareCard?:
+    | T
+    | {
+        useReleaseDefault?: T;
+        layout?: T;
+        kicker?: T;
+        accentColor?: T;
+        headline?: T;
+        subline?: T;
+        showWordmark?: T;
+        artwork?: T;
+        background?: T;
+        image?: T;
+        linkTitle?: T;
+        linkDescription?: T;
+      };
   lyricsStatus?: T;
   rightsConfirmed?: T;
   rightsConfirmedAt?: T;
@@ -2854,6 +2986,60 @@ export interface PublishingSetting {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "myradio-settings".
+ */
+export interface MyradioSetting {
+  id: number;
+  /**
+   * The link-preview image for myradio.nathandale.com itself.
+   */
+  siteCard?: {
+    /**
+     * Card design.
+     */
+    layout?: ('broadcast' | 'poster' | 'terrestrial' | 'image') | null;
+    /**
+     * Small line above the title.
+     */
+    kicker?: string | null;
+    /**
+     * Beacon and kicker color.
+     */
+    accentColor?: string | null;
+    /**
+     * Main title on the card.
+     */
+    headline?: string | null;
+    /**
+     * Line under the title.
+     */
+    subline?: string | null;
+    /**
+     * The MY RADIO wordmark with its beacon.
+     */
+    showWordmark?: ('show' | 'hide') | null;
+    /**
+     * Background image. Blank uses the blurred artwork (Broadcast) or the TERRESTRIAL night sky.
+     */
+    background?: (number | null) | Media;
+    /**
+     * A finished 1200×630 card. It is cropped to fit if the shape differs.
+     */
+    image?: (number | null) | Media;
+    /**
+     * Bold title under the card. Blank uses “MY RADIO / Nathan Dale”.
+     */
+    linkTitle?: string | null;
+    /**
+     * Short description some apps show under the title.
+     */
+    linkDescription?: string | null;
+  };
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "header_select".
  */
 export interface HeaderSelect<T extends boolean = true> {
@@ -2916,6 +3102,29 @@ export interface PublishingSettingsSelect<T extends boolean = true> {
   publisherUrl?: T;
   defaultSuggestedSats?: T;
   siteImage?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "myradio-settings_select".
+ */
+export interface MyradioSettingsSelect<T extends boolean = true> {
+  siteCard?:
+    | T
+    | {
+        layout?: T;
+        kicker?: T;
+        accentColor?: T;
+        headline?: T;
+        subline?: T;
+        showWordmark?: T;
+        background?: T;
+        image?: T;
+        linkTitle?: T;
+        linkDescription?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

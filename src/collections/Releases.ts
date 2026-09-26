@@ -11,6 +11,7 @@ import {
 } from '../access/workflowTransitions'
 import type { User } from '@/payload-types'
 import { fundingLinksField } from '../fields/fundingLinks'
+import { releaseShareCardField } from '../fields/shareCard'
 import { RELEASE_THEME_SCHEMA_VERSION, RELEASE_THEME_TOKEN_FIELDS } from '../lib/release-theme'
 import { validateReleasePublishTransition } from '../hooks/validatePublishTransition'
 import { manageReleaseServerFields } from '../hooks/managePublicationState'
@@ -396,6 +397,9 @@ export const Releases: CollectionConfig = {
           name: 'socialCard',
           type: 'group',
           label: 'Social card',
+          // Superseded by the top-level Share card group; MY RADIO never read it.
+          // Kept (hidden) because it is part of the transported theme config.
+          admin: { hidden: true },
           fields: [
             {
               name: 'layout',
@@ -442,6 +446,7 @@ export const Releases: CollectionConfig = {
         },
       ],
     },
+    releaseShareCardField(),
     // ── SHADOW / campaign distribution (ND-MR-001) ──
     {
       name: 'distribution',
@@ -537,13 +542,15 @@ export const Releases: CollectionConfig = {
           name: 'shareTitle',
           type: 'text',
           maxLength: 120,
-          admin: { description: 'Optional social title override. Falls back to the standard "{Track} — {Artist} | MYRADIO" title when blank.' },
+          // Superseded by shareCard.linkTitle/linkDescription, which fall back to this.
+          admin: { hidden: true, description: 'Optional social title override. Falls back to the standard "{Track} — {Artist} | MYRADIO" title when blank.' },
         },
         {
           name: 'shareDescription',
           type: 'textarea',
           maxLength: 300,
-          admin: { description: 'Optional bounded social description override.' },
+          // Superseded by shareCard.linkTitle/linkDescription, which fall back to this.
+          admin: { hidden: true, description: 'Optional bounded social description override.' },
         },
         {
           name: 'analyticsSchemaVersion',

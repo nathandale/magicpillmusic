@@ -43,6 +43,10 @@ const releasePublicationSnapshot = (release: Record<string, unknown>): string =>
     delete copy[key]
   }
 
+  // Share cards are link-preview presentation only (src/fields/shareCard.ts);
+  // they never touch playback, so they stay editable on a live release.
+  delete copy.shareCard
+
   const myradio = copy.myradio as Record<string, unknown> | undefined
   if (myradio) delete myradio.themeRevision
   const distribution = copy.distribution as Record<string, unknown> | undefined
@@ -237,6 +241,8 @@ const trackMutationSnapshot = (track: Record<string, unknown>): string => {
   ]) {
     delete copy[key]
   }
+  // Share cards are link-preview presentation only; see releasePublicationSnapshot.
+  delete copy.shareCard
   return JSON.stringify(canonicalize(copy))
 }
 

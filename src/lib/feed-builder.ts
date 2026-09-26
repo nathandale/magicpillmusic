@@ -1,5 +1,6 @@
 import type { Artist, PublishingSetting, Release, Track, ValueSplit } from '../payload-types'
 import { buildThemeConfigPayload } from './release-theme'
+import { type ShareCardDesign, resolveTrackShareCard, shareCardVersion } from './share-card/resolve'
 
 type ReleaseWithFeedFields = Release & {
   medium?: 'music' | 'video' | null
@@ -259,6 +260,31 @@ const trackNotesTags = (track: {
   )
 }
 
+/**
+ * The track's link-preview card (src/fields/shareCard.ts): image URL (versioned by
+ * content hash, so apps refetch when the design changes) plus link title and
+ * description, for MY RADIO's metadata service.
+ */
+const shareCardTags = (release: ReleaseWithFeedFields, track: TrackWithFeedFields, artistName: string, baseUrl: string): string => {
+  if (!track.shareId) return ''
+  const card = resolveTrackShareCard({
+    releaseCard: release.shareCard as ShareCardDesign | null,
+    trackCard: track.shareCard as ShareCardDesign | null,
+    track: { title: track.title, artwork: track.artwork as ShareCardDesign['artwork'], shareExcerpt: track.shareExcerpt, year: track.year },
+    release: {
+      title: release.title,
+      description: release.description,
+      coverImage: release.coverImage as ShareCardDesign['artwork'],
+      distribution: release.distribution,
+    },
+    artistName,
+  })
+  const image = buildPathUrl(baseUrl, `/cards/track/${encodeURIComponent(track.shareId)}?v=${shareCardVersion(card)}`)
+  const tag = (purpose: string, value: string) =>
+    value ? `      <podcast:txt purpose="myradio:${purpose}">${xmlText(value)}</podcast:txt>\n` : ''
+  return tag('card-image', image) + tag('card-title', card.linkTitle) + tag('card-description', card.linkDescription)
+}
+
 export const buildReleaseFeedXml = ({
   release,
   tracks,
@@ -369,6 +395,7 @@ export const buildReleaseFeedXml = ({
             shareExcerpt?: string
           },
         ) +
+        shareCardTags(release, track, artistName, normalizedBaseUrl) +
         '    </item>\n'
       )
     })

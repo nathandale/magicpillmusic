@@ -12,6 +12,7 @@ import {
 import { GENRE_OPTIONS } from './Releases'
 import type { User } from '@/payload-types'
 import { fundingLinksField } from '../fields/fundingLinks'
+import { trackShareCardField } from '../fields/shareCard'
 import { validateTrackReadinessTransition } from '../hooks/validatePublishTransition'
 import {
   invalidateReleasePreviewOnTrackChange,
@@ -259,6 +260,7 @@ export const Tracks: CollectionConfig = {
       maxLength: 200,
       admin: { description: 'Optional bounded track-specific share copy.' },
     },
+    trackShareCardField(),
     {
       name: 'lyricsStatus',
       type: 'select',
