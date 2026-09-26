@@ -7,7 +7,7 @@
 # the working tree), builds beside the live release, backs up Postgres, runs
 # migrations, switches /var/www/magicpillmusic-current, restarts payload.service
 # and health-checks. If the checks fail it switches back to the previous
-# release. Migrations must stay additive so the previous code can run on them.
+# release. Migrations run before the build (it prerenders against the DB). Migrations must stay additive so the previous code can run on them.
 set -euo pipefail
 
 HOST="${DEMU_HOST:-root@74.207.247.179}"
@@ -30,7 +30,11 @@ CURRENT=/var/www/magicpillmusic-current
 R="$RELEASES/$NAME"
 PREV="$(readlink -f "$CURRENT")"
 
-[[ -e "$R" ]] && { echo "Release folder $R already exists." >&2; exit 1; }
+if [[ -e "$R" ]]; then
+  [[ "$(readlink -f "$R")" == "$PREV" ]] && { echo "$R is the live release." >&2; exit 1; }
+  echo "==> Removing $R left by an earlier attempt that never went live"
+  rm -rf "$R"
+fi
 echo "==> Staging $R (live: $PREV)"
 mkdir "$R"
 tar -x -C "$R" -f "$TAR"
@@ -50,10 +54,9 @@ fi
 chown -R nathandale:nathandale "$R"
 chown -h nathandale:nathandale "$R/.env" "$R/public/media" "$R/public/audio"
 
-echo "==> Building (low priority; the live site keeps serving)"
-sudo -u nathandale bash -c "cd '$R' && nice -n 19 ionice -c 3 npm run build" > "$R/build.log" 2>&1 \
-  || { tail -40 "$R/build.log" >&2; echo "Build failed; live release untouched." >&2; exit 1; }
-
+# Migrate before building: `next build` prerenders pages that query the new
+# columns. Safe because migrations must be additive, so the live release keeps
+# working on the migrated schema even if this build then fails.
 STAMP="$(date -u +%Y%m%dT%H%MZ)"
 BACKUP="/var/backups/magicpillmusic/pre-$NAME-$STAMP.dump"
 echo "==> Backing up payload_db to $BACKUP"
@@ -62,6 +65,10 @@ chmod 600 "$BACKUP"
 
 echo "==> Migrating"
 sudo -u nathandale bash -c "cd '$R' && npx payload migrate" 2>&1 | { grep -v -i nodemailer || true; } | tail -20
+
+echo "==> Building (low priority; the live site keeps serving)"
+sudo -u nathandale bash -c "cd '$R' && nice -n 19 ionice -c 3 npm run build" > "$R/build.log" 2>&1 \
+  || { tail -40 "$R/build.log" >&2; echo "Build failed; live release untouched (the additive migration stays applied)." >&2; exit 1; }
 
 health() {
   for _ in $(seq 1 60); do
