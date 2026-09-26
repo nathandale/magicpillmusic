@@ -542,14 +542,14 @@ export const Releases: CollectionConfig = {
           name: 'shareTitle',
           type: 'text',
           maxLength: 120,
-          // Superseded by shareCard.linkTitle/linkDescription, which fall back to this.
+          // Superseded by shareCard.linkTitle/linkDescription. Never published; kept for data only.
           admin: { hidden: true, description: 'Optional social title override. Falls back to the standard "{Track} — {Artist} | MYRADIO" title when blank.' },
         },
         {
           name: 'shareDescription',
           type: 'textarea',
           maxLength: 300,
-          // Superseded by shareCard.linkTitle/linkDescription, which fall back to this.
+          // Superseded by shareCard.linkTitle/linkDescription. Never published; kept for data only.
           admin: { hidden: true, description: 'Optional bounded social description override.' },
         },
         {

@@ -61,6 +61,16 @@ describe('share card resolution', () => {
     expect(card.subline).toBe('Nathan Dale')
   })
 
+  it('never publishes the hidden legacy share fields, and falls back to the song description', () => {
+    const card = resolveTrackShareCard({
+      track: { title: 'My Radio (Analog Innocence)', description: 'The song’s own description.' },
+      release: { ...release, distribution: { shareTitle: 'Legacy — title', shareDescription: 'Legacy—copy.' } } as never,
+      artistName: 'Nathan Dale',
+    })
+    expect(card.linkTitle).toBe('My Radio (Analog Innocence) by Nathan Dale | MY RADIO')
+    expect(card.linkDescription).toBe('The song’s own description.')
+  })
+
   it('rejects unknown layouts and bad colors instead of passing them to the renderer', () => {
     const card = resolveTrackShareCard({ releaseCard: { layout: 'nope', accentColor: 'red' }, track, release })
     expect(card.layout).toBe('broadcast')

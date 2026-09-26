@@ -28,12 +28,11 @@ export const resolveCardForTrack = (release: Release, track: Track, trackCard?: 
   resolveTrackShareCard({
     releaseCard: (releaseCard ?? release.shareCard) as ShareCardDesign | null,
     trackCard: (trackCard ?? track.shareCard) as ShareCardDesign | null,
-    track: { title: track.title, artwork: track.artwork as ShareCardDesign['artwork'], shareExcerpt: track.shareExcerpt, year: track.year },
+    track: { title: track.title, artwork: track.artwork as ShareCardDesign['artwork'], shareExcerpt: track.shareExcerpt, description: track.description, year: track.year },
     release: {
       title: release.title,
       description: release.description,
       coverImage: release.coverImage as ShareCardDesign['artwork'],
-      distribution: release.distribution,
     },
     artistName: artistNameOf(release),
   })

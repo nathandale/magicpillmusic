@@ -54,12 +54,11 @@ export type ResolvedShareCard = {
 export type TrackCardInput = {
   releaseCard?: ShareCardDesign | null
   trackCard?: ShareCardDesign | null
-  track: { title?: string | null; artwork?: MediaInput; shareExcerpt?: string | null; year?: number | null }
+  track: { title?: string | null; artwork?: MediaInput; shareExcerpt?: string | null; description?: string | null; year?: number | null }
   release: {
     title?: string | null
     description?: string | null
     coverImage?: MediaInput
-    distribution?: { shareTitle?: string | null; shareDescription?: string | null } | null
   }
   artistName?: string | null
 }
@@ -103,16 +102,17 @@ export const resolveTrackShareCard = ({ releaseCard, trackCard, track, release, 
     artwork: media(first(media(override.artwork), media(base.artwork), media(track.artwork), media(release.coverImage))),
     background: media(first(media(override.background), media(base.background))),
     image: media(first(media(override.image), media(base.image))),
-    linkTitle: expand(
-      first(text(override.linkTitle), text(base.linkTitle), text(release.distribution?.shareTitle)) || '{track} by {artist} | MY RADIO',
-    ),
-    // The most specific copy wins: a song's own excerpt beats the release-wide line.
+    // Only visible, editable copy is ever published. The hidden legacy
+    // distribution.shareTitle/shareDescription fields are deliberately ignored.
+    linkTitle: expand(first(text(override.linkTitle), text(base.linkTitle)) || '{track} by {artist} | MY RADIO'),
+    // The most specific copy wins: a song's own excerpt beats the release-wide
+    // card line, which beats the song and release descriptions.
     linkDescription: expand(
       first(
         text(override.linkDescription),
         text(track.shareExcerpt),
         text(base.linkDescription),
-        text(release.distribution?.shareDescription),
+        text(track.description),
         text(release.description),
       ) || 'Listen to {track} by {artist} on MY RADIO.',
     ),

@@ -175,7 +175,7 @@ const designFields = (mode: Mode): Field[] => {
             description:
               mode === 'site'
                 ? 'Short description some apps show under the title.'
-                : `Short description some apps show under the title.${tokens} Blank uses the song’s share excerpt, then the release description.${blankNote}`,
+                : `Short description some apps show under the title.${tokens} A song’s own Share Excerpt always wins over this. Blank falls back to the song’s description, then the release description.${blankNote}`,
           },
         },
       ],
