@@ -227,7 +227,14 @@ const trackPreviewSnapshot = (t: TrackPreviewFields | null | undefined): string 
 
 const trackMutationSnapshot = (track: Record<string, unknown>): string => {
   const copy = structuredClone(track)
-  for (const key of ['id', 'createdAt', 'updatedAt', 'guid', 'shareId', 'rightsConfirmedAt', 'rightsConfirmedBy']) {
+  // A published release's listening identity is immutable until it re-enters
+  // the publication workflow. These information-only fields do not change the
+  // audio, order, artwork, or track-set fingerprint, and must remain editable
+  // without taking a live MY RADIO channel offline.
+  for (const key of [
+    'id', 'createdAt', 'updatedAt', 'guid', 'shareId', 'rightsConfirmedAt', 'rightsConfirmedBy',
+    '_status', 'year', 'songwriters', 'personnel', 'story', 'rightsConfirmed',
+  ]) {
     delete copy[key]
   }
   return JSON.stringify(canonicalize(copy))
@@ -248,7 +255,7 @@ const parentReleaseIsFinal = async (
   return FINAL_PUBLICATION_STATES.has(release.workflowState as ReleaseWorkflowState)
 }
 
-/** A scheduled or published release must return to an editable workflow state before any child Track changes. */
+/** Keep published playback immutable, while allowing information-only Track edits. */
 export const protectPublishedReleaseTrackMutation: CollectionBeforeChangeHook = async ({
   data,
   originalDoc,
@@ -261,19 +268,24 @@ export const protectPublishedReleaseTrackMutation: CollectionBeforeChangeHook = 
   const releaseRef = data?.release ?? originalDoc?.release
   if (!(await parentReleaseIsFinal(releaseRef, req))) return data
 
+  const merged = deepMerge(
+    (originalDoc ?? {}) as Record<string, unknown>,
+    (data ?? {}) as Record<string, unknown>,
+  )
+  // Payload sets _status=draft on autosave. That is safe only when the request
+  // really is a draft write; a normal update must not unpublish a live Track.
+  const draftRequest = req.query?.draft === true || req.query?.draft === 'true'
+  const unpublishing = data?._status === 'draft' && !draftRequest
+  // Rights attestation may be added, but never silently revoked on a live Track.
+  const rightsRevoked = Boolean(originalDoc?.rightsConfirmed) && merged.rightsConfirmed !== true
   const changed =
     operation === 'create' ||
     trackMutationSnapshot((originalDoc ?? {}) as Record<string, unknown>) !==
-      trackMutationSnapshot(
-        deepMerge(
-          (originalDoc ?? {}) as Record<string, unknown>,
-          (data ?? {}) as Record<string, unknown>,
-        ),
-      )
+      trackMutationSnapshot(merged)
 
-  if (changed) {
+  if (changed || unpublishing || rightsRevoked) {
     throw new Error(
-      'The parent release is scheduled or published. Move the release workflowState out of the final-publication states before creating or editing tracks; the release must be previewed and verified again before scheduling or publishing.',
+      'The parent release is scheduled or published. Year, songwriters, personnel, story, and rights confirmation can be edited safely; move the release workflowState out of the final-publication states before changing track identity, audio, order, or other publication fields.',
     )
   }
   return data

@@ -1066,6 +1066,52 @@ describe('Review round 2: publication-gate hardening', () => {
       ).rejects.toThrow(/parent release is scheduled or published/i)
     })
 
+    it('allows information-only autosave and publication without changing a live track identity', async () => {
+      const req = {
+        query: { draft: 'true' },
+        payload: { findByID: async () => ({ workflowState: 'published' }) },
+      }
+      const originalDoc = {
+        id: 2,
+        release: 1,
+        title: 'Out Of Your Head',
+        audioUrl: '/audio/original.mp3',
+        trackNumber: 2,
+        _status: 'published',
+        rightsConfirmed: false,
+      }
+
+      await expect(protectPublishedReleaseTrackMutation({
+        operation: 'update', originalDoc,
+        data: { _status: 'draft', year: 2026, songwriters: 'Nathan Dale', personnel: 'Nathan — guitar', story: 'Song notes', rightsConfirmed: true },
+        req, context: {},
+      } as never)).resolves.toBeDefined()
+
+      await expect(protectPublishedReleaseTrackMutation({
+        operation: 'update',
+        originalDoc: { ...originalDoc, _status: 'draft', year: 2026, songwriters: 'Nathan Dale', story: 'Song notes', rightsConfirmed: true },
+        data: { _status: 'published', story: 'Revised song notes' },
+        req: { ...req, query: {} }, context: {},
+      } as never)).resolves.toBeDefined()
+    })
+
+    it('still rejects unpublishing, rights revocation, and audio changes on a live release', async () => {
+      const req = {
+        query: {},
+        payload: { findByID: async () => ({ workflowState: 'published' }) },
+      }
+      const originalDoc = { id: 2, release: 1, title: 'Original', audioUrl: '/audio/original.mp3', _status: 'published', rightsConfirmed: true }
+      for (const data of [
+        { _status: 'draft' },
+        { rightsConfirmed: false },
+        { audioUrl: '/audio/replacement.mp3' },
+      ]) {
+        await expect(protectPublishedReleaseTrackMutation({
+          operation: 'update', originalDoc, data, req, context: {},
+        } as never)).rejects.toThrow(/parent release is scheduled or published/i)
+      }
+    })
+
     it('rejects a child-track mutation while its parent release is scheduled', async () => {
       const req = {
         payload: {
