@@ -3,11 +3,20 @@
 #
 #   deploy/deploy-release.sh <commit> [release-name]
 #
-# Run from the dev box inside this repo. It ships `git archive <commit>` (never
-# the working tree), builds beside the live release, backs up Postgres, runs
-# migrations, switches /var/www/magicpillmusic-current, restarts payload.service
-# and health-checks. If the checks fail it switches back to the previous
-# release. Migrations run before the build (it prerenders against the DB). Migrations must stay additive so the previous code can run on them.
+# Run from the dev box inside this repo, in an interactive terminal. It ships
+# `git archive <commit>` (never the working tree) and works in three phases:
+#
+#   1. Stage the release beside the live one and back up Postgres.
+#   2. Run `payload migrate` attached to YOUR terminal. Payload may ask you to
+#      confirm (production still carries a stale batch -1 "dev" marker from
+#      2026-09-11); that answer is yours, never scripted.
+#   3. Verify every migration is recorded, build, switch
+#      /var/www/magicpillmusic-current, restart payload.service and health-check,
+#      switching back to the previous release if the checks fail.
+#
+# Migrations run before the build because `next build` prerenders pages that
+# query the database. They must stay additive so the live release keeps working
+# on the migrated schema even if the build then fails.
 set -euo pipefail
 
 HOST="${DEMU_HOST:-root@74.207.247.179}"
@@ -15,12 +24,14 @@ COMMIT="$(git rev-parse --short "${1:?usage: deploy/deploy-release.sh <commit> [
 NAME="${2:-$COMMIT}"
 
 git merge-base --is-ancestor "$COMMIT" origin/main || { echo "Refusing: $COMMIT is not on origin/main." >&2; exit 1; }
+[[ -t 0 ]] || { echo "Run this from an interactive terminal: the migration step may ask you to confirm." >&2; exit 1; }
 
 TAR="$(mktemp)"
 trap 'rm -f "$TAR"' EXIT
 git archive --format=tar -o "$TAR" "$COMMIT"
 scp -q "$TAR" "$HOST:/root/demu-$NAME.tar"
 
+# ── Phase 1: stage and back up ────────────────────────────────────────────────
 ssh "$HOST" bash -s -- "$NAME" <<'REMOTE'
 set -euo pipefail
 NAME="$1"
@@ -54,17 +65,32 @@ fi
 chown -R nathandale:nathandale "$R"
 chown -h nathandale:nathandale "$R/.env" "$R/public/media" "$R/public/audio"
 
-# Migrate before building: `next build` prerenders pages that query the new
-# columns. Safe because migrations must be additive, so the live release keeps
-# working on the migrated schema even if this build then fails.
-STAMP="$(date -u +%Y%m%dT%H%MZ)"
-BACKUP="/var/backups/magicpillmusic/pre-$NAME-$STAMP.dump"
+BACKUP="/var/backups/magicpillmusic/pre-$NAME-$(date -u +%Y%m%dT%H%MZ).dump"
 echo "==> Backing up payload_db to $BACKUP"
-sudo -u postgres pg_dump -Fc payload_db > "$BACKUP"
+(cd /tmp && sudo -u postgres pg_dump -Fc payload_db) > "$BACKUP"
 chmod 600 "$BACKUP"
+REMOTE
 
-echo "==> Migrating"
-sudo -u nathandale bash -c "cd '$R' && npx payload migrate" 2>&1 | { grep -v -i nodemailer || true; } | tail -20
+# ── Phase 2: migrate, attached to your terminal ───────────────────────────────
+echo "==> Migrating. If Payload asks about dev mode, answer it yourself."
+ssh -t "$HOST" "sudo -u nathandale bash -c 'cd /var/www/magicpillmusic-releases/$NAME && npx payload migrate'"
+
+# ── Phase 3: verify, build, switch, health-check ──────────────────────────────
+ssh "$HOST" bash -s -- "$NAME" <<'REMOTE'
+set -euo pipefail
+NAME="$1"
+CURRENT=/var/www/magicpillmusic-current
+R="/var/www/magicpillmusic-releases/$NAME"
+PREV="$(readlink -f "$CURRENT")"
+
+# Payload exits 0 even when its prompt is declined, so check the result itself.
+RECORDED="$(cd /tmp && sudo -u postgres psql -d payload_db -Atc 'select name from payload_migrations')"
+for file in "$R"/src/migrations/*.ts; do
+  name="$(basename "$file" .ts)"
+  [[ "$name" == index ]] && continue
+  grep -qx "$name" <<<"$RECORDED" || { echo "Migration $name was not applied; stopping before the build. Live release untouched." >&2; exit 1; }
+done
+echo "==> All migrations recorded"
 
 echo "==> Building (low priority; the live site keeps serving)"
 sudo -u nathandale bash -c "cd '$R' && nice -n 19 ionice -c 3 npm run build" > "$R/build.log" 2>&1 \
@@ -85,7 +111,7 @@ echo "==> Switching to $NAME and restarting"
 ln -sfn "$R" "$CURRENT"
 systemctl restart payload.service
 if health; then
-  echo "==> DEMU $NAME is live. Previous release kept at $PREV; backup at $BACKUP"
+  echo "==> DEMU $NAME is live. Previous release kept at $PREV"
 else
   echo "Health check failed; restoring $PREV" >&2
   ln -sfn "$PREV" "$CURRENT"
